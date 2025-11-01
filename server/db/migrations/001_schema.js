@@ -297,7 +297,7 @@ class SchemaMigration {
       );
     `);
 
-    -- Deployment preview URLs
+    // Deployment preview URLs
     await postgres.query(`
       CREATE TABLE IF NOT EXISTS deployment_previews (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
