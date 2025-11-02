@@ -165,16 +165,15 @@ export default function EdgeHandlersPage() {
           <CardHeader>
             <CardTitle>Create Edge Handler</CardTitle>
           </CardHeader>
-          <CardContent>
-          <form onSubmit={createHandler} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                value={newHandler.name}
-                onChange={(e) => setNewHandler({ ...newHandler, name: e.target.value })}
-                placeholder="my-edge-handler"
-              />
-            </div>
+          <form onSubmit={createHandler}>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Name</label>
+                <Input
+                  value={newHandler.name}
+                  onChange={(e) => setNewHandler({ ...newHandler, name: e.target.value })}
+                  placeholder="my-edge-handler"
+                />
 
             <div>
               <label className="text-sm font-medium">URL Pattern</label>
@@ -230,10 +229,10 @@ export default function EdgeHandlersPage() {
               </select>
             </div>
 
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create Handler'}
-            </Button>
-          </CardContent>
+              <Button type="submit" disabled={creating}>
+                {creating ? 'Creating...' : 'Create Handler'}
+              </Button>
+            </CardContent>
           </form>
         </Card>
 
