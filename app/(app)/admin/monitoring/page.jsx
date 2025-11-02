@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,14 +9,83 @@ import { AlertCircle, AlertTriangle, CheckCircle, Activity, Server, AlertOctagon
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function HealthMonitoringPage() {
-  const [systemStatus] = useState({
+  const [monitoringData, setMonitoringData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchMonitoringData();
+    const interval = setInterval(fetchMonitoringData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchMonitoringData = async () => {
+    try {
+      setLoading(true);
+      const [healthResponse, servicesResponse, alertsResponse, metricsResponse] = await Promise.all([
+        fetch('/api/admin/monitoring/health', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }),
+        fetch('/api/admin/monitoring/services', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }),
+        fetch('/api/admin/monitoring/alerts', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }),
+        fetch('/api/admin/monitoring/performance', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+      ]);
+
+      const [health, services, alerts, metrics] = await Promise.all([
+        healthResponse.json(),
+        servicesResponse.json(),
+        alertsResponse.json(),
+        metricsResponse.json()
+      ]);
+
+      setMonitoringData({ health, services, alerts, metrics });
+    } catch (error) {
+      console.error('Error fetching monitoring data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !monitoringData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading monitoring data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">Error loading monitoring data: {error}</p>
+          <Button onClick={fetchMonitoringData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { health, services = [], alerts = [], metrics } = monitoringData || {};
+  const systemStatus = health?.metrics || {
     uptime: '99.98%',
     avgResponseTime: '145ms',
     errorRate: '0.02%',
     totalRequests: '2.4M',
-  });
+  };
 
-  const performanceData = [
+  // Fallback data
+  const fallbackPerformanceData = [
     { time: '00:00', latency: 120, errorRate: 0.5 },
     { time: '04:00', latency: 95, errorRate: 0.3 },
     { time: '08:00', latency: 180, errorRate: 1.2 },
@@ -26,7 +95,7 @@ export default function HealthMonitoringPage() {
     { time: '24:00', latency: 125, errorRate: 0.2 },
   ];
 
-  const services = [
+  const fallbackServices = [
     { name: 'API Server', status: 'healthy', uptime: '99.99%', lastCheck: '1 min ago', responseTime: '120ms' },
     { name: 'Database', status: 'healthy', uptime: '99.98%', lastCheck: '2 min ago', responseTime: '45ms' },
     { name: 'Cache Layer', status: 'healthy', uptime: '99.97%', lastCheck: '1 min ago', responseTime: '12ms' },
@@ -35,17 +104,15 @@ export default function HealthMonitoringPage() {
     { name: 'Message Queue', status: 'healthy', uptime: '99.96%', lastCheck: '2 min ago', responseTime: '320ms' },
   ];
 
-  const alerts = [
-    { id: 1, level: 'warning', title: 'High Memory Usage', desc: 'Storage service memory at 85%', time: '15 min ago', service: 'Storage Service' },
-    { id: 2, level: 'info', title: 'Scheduled Maintenance', desc: 'Database backup in progress', time: '2 hours ago', service: 'Database' },
-    { id: 3, level: 'error', title: 'Increased Latency', desc: 'API response time increased by 40%', time: '5 hours ago', service: 'API Server' },
-  ];
-
-  const incidents = [
+  const fallbackIncidents = [
     { id: 1, title: 'Cache Sync Issue', status: 'resolved', severity: 'medium', duration: '2h 15m', time: 'Yesterday' },
     { id: 2, title: 'Database Replication Lag', status: 'resolved', severity: 'high', duration: '45m', time: '2 days ago' },
     { id: 3, title: 'Spike in API Errors', status: 'resolved', severity: 'low', duration: '12m', time: '5 days ago' },
   ];
+
+  const performanceData = metrics?.data || fallbackPerformanceData;
+  const displayServices = services.length > 0 ? services : fallbackServices;
+  const incidents = fallbackIncidents;
 
   const errorDistribution = [
     { name: '5xx Errors', value: 15 },
@@ -135,7 +202,7 @@ export default function HealthMonitoringPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {services.map((service) => (
+                {displayServices.map((service) => (
                   <Card key={service.name} className="border">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">

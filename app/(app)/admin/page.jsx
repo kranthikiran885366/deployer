@@ -47,6 +47,16 @@ export default function AdminDashboard() {
     { title: 'Audit Logs', desc: 'View compliance and audit logs', href: '/admin/audit', icon: '📋' },
   ];
 
+  // Mock chart data - this should come from API in real implementation
+  const chartData = [
+    { month: 'Jan', deployments: 45, errors: 2, users: 120 },
+    { month: 'Feb', deployments: 52, errors: 1, users: 135 },
+    { month: 'Mar', deployments: 48, errors: 3, users: 142 },
+    { month: 'Apr', deployments: 61, errors: 1, users: 158 },
+    { month: 'May', deployments: 55, errors: 2, users: 167 },
+    { month: 'Jun', deployments: 67, errors: 1, users: 184 },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

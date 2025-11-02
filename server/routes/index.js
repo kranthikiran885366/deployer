@@ -12,6 +12,11 @@ const mediaCdnRoutes = require('./media-cdn');
 const multiRegionRoutes = require('./multi-region');
 const billingRoutes = require('./billing');
 
+// Import team management routes
+const teamGroupRoutes = require('./teamGroups');
+const ssoRoutes = require('./sso');
+const billingContactRoutes = require('./billingContacts');
+
 // Import all feature routers - New features (1-15)
 const buildRoutes = require('./builds');
 const functionRoutes = require('./functions');
@@ -47,6 +52,11 @@ router.use('/edge-handlers', authenticate, edgeHandlerRoutes);
 router.use('/media-cdn', authenticate, mediaCdnRoutes);
 router.use('/multi-region', authenticate, multiRegionRoutes);
 router.use('/billing', billingRoutes);
+
+// Team management routes
+router.use('/team/groups', authenticate, teamGroupRoutes);
+router.use('/team/sso', authenticate, ssoRoutes);
+router.use('/team/billing-contacts', authenticate, billingContactRoutes);
 
 // New feature routes (1-15)
 router.use('/builds', authenticate, buildRoutes);

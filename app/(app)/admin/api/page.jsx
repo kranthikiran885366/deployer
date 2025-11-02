@@ -1,19 +1,81 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Plus, Trash2, AlertCircle } from 'lucide-react';
 
 export default function APISDKPage() {
-  const [apiKeys, setApiKeys] = useState([
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showKey, setShowKey] = useState({});
+
+  useEffect(() => {
+    fetchApiData();
+  }, []);
+
+  const fetchApiData = async () => {
+    try {
+      setLoading(true);
+      const [tokensResponse, statsResponse] = await Promise.all([
+        fetch('/api/admin/api/tokens', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }),
+        fetch('/api/admin/api/stats', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+      ]);
+
+      const [tokens, stats] = await Promise.all([
+        tokensResponse.json(),
+        statsResponse.json()
+      ]);
+
+      setApiData({ tokens, stats });
+    } catch (error) {
+      console.error('Error fetching API data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading API data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">Error loading API data: {error}</p>
+          <Button onClick={fetchApiData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { tokens = [], stats = {} } = apiData || {};
+
+  // Fallback data
+  const fallbackTokens = [
     { id: 1, name: 'Production API Key', key: 'sk_live_***', scopes: ['deploy', 'read:logs'], created: '30 days ago', lastUsed: '2 hours ago' },
     { id: 2, name: 'CI/CD Integration', key: 'sk_live_***', scopes: ['deploy', 'read:projects'], created: '15 days ago', lastUsed: '10 min ago' }
-  ]);
-  const [showKey, setShowKey] = useState({});
+  ];
+
+  const apiKeys = tokens.length > 0 ? tokens : fallbackTokens;
 
   return (
     <div className="space-y-6 p-6">

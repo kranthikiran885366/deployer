@@ -234,6 +234,82 @@ class AnalyticsService {
 
     return alert
   }
+
+  // Cost Analytics
+  async getCostAnalytics(timeRange = '30') {
+    // This would integrate with cloud provider APIs for real cost data
+    const days = parseInt(timeRange);
+    
+    return {
+      summary: {
+        totalCost: 10450,
+        dailyAverage: 348,
+        forecast: 11200,
+        monthlyChange: '+8.5%',
+        dailyChange: '-2%',
+        computeCost: 4500,
+        computePercentage: 43,
+        forecastChange: '+7%'
+      },
+      trends: [
+        { month: 'Jan', compute: 1200, storage: 400, bandwidth: 300, database: 500 },
+        { month: 'Feb', compute: 1500, storage: 450, bandwidth: 350, database: 600 },
+        { month: 'Mar', compute: 1800, storage: 500, bandwidth: 400, database: 700 },
+        { month: 'Apr', compute: 2100, storage: 550, bandwidth: 450, database: 800 },
+        { month: 'May', compute: 1900, storage: 480, bandwidth: 420, database: 750 },
+        { month: 'Jun', compute: 2200, storage: 600, bandwidth: 500, database: 900 },
+      ],
+      breakdown: [
+        { name: 'Compute', value: 45, cost: '$4,500' },
+        { name: 'Storage', value: 20, cost: '$2,000' },
+        { name: 'Bandwidth', value: 18, cost: '$1,800' },
+        { name: 'Database', value: 17, cost: '$1,700' },
+      ],
+      projects: [
+        { name: 'Production API', cost: 2500, trend: 'up', percentage: 12 },
+        { name: 'Website Hosting', cost: 1800, trend: 'down', percentage: 5 },
+        { name: 'Data Pipeline', cost: 1200, trend: 'up', percentage: 8 },
+        { name: 'Mobile Backend', cost: 950, trend: 'down', percentage: 3 },
+        { name: 'Analytics Service', cost: 800, trend: 'up', percentage: 15 },
+        { name: 'Dev Environment', cost: 450, trend: 'down', percentage: 2 },
+      ],
+      drivers: [
+        { resource: 'Large Database Instance', cost: 1500, percentage: 15, status: 'high' },
+        { resource: 'GPU Compute Instances', cost: 1200, percentage: 12, status: 'high' },
+        { resource: 'CDN Usage', cost: 800, percentage: 8, status: 'medium' },
+        { resource: 'API Gateway', cost: 650, percentage: 6.5, status: 'medium' },
+        { resource: 'Storage Buckets', cost: 500, percentage: 5, status: 'low' },
+      ]
+    };
+  }
+
+  // Performance Analytics
+  async getPerformanceAnalytics(timeRange = '30') {
+    const days = parseInt(timeRange);
+    
+    return {
+      summary: {
+        avgResponseTime: 145,
+        errorRate: 0.02,
+        uptime: 99.98,
+        throughput: 2400
+      },
+      trends: [
+        { time: '00:00', latency: 120, errors: 0.5, throughput: 2200 },
+        { time: '04:00', latency: 95, errors: 0.3, throughput: 1800 },
+        { time: '08:00', latency: 180, errors: 1.2, throughput: 2800 },
+        { time: '12:00', latency: 210, errors: 0.8, throughput: 3200 },
+        { time: '16:00', latency: 165, errors: 0.4, throughput: 2900 },
+        { time: '20:00', latency: 140, errors: 0.6, throughput: 2400 }
+      ],
+      services: [
+        { name: 'API Server', avgLatency: 120, errorRate: 0.01, uptime: 99.99 },
+        { name: 'Database', avgLatency: 45, errorRate: 0.001, uptime: 99.98 },
+        { name: 'Cache', avgLatency: 12, errorRate: 0.005, uptime: 99.97 },
+        { name: 'Storage', avgLatency: 850, errorRate: 0.1, uptime: 99.85 }
+      ]
+    };
+  }
 }
 
 module.exports = new AnalyticsService()

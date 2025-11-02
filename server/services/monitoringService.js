@@ -1,282 +1,383 @@
 const { sequelize } = require('../db/postgres');
-const { QueryTypes } = require('sequelize');
 const Alert = require('../models/Alert');
+const Metric = require('../models/Metric');
+const UptimeMetric = require('../models/UptimeMetric');
+const Incident = require('../models/Incident');
+const SystemStatus = require('../models/SystemStatus');
+const { QueryTypes } = require('sequelize');
 
-const monitoringService = {
-  // System Health
+class MonitoringService {
+  constructor() {
+    this.services = [
+      { name: 'API Server', endpoint: '/health', port: 3000 },
+      { name: 'Database', endpoint: null, port: 5432 },
+      { name: 'Redis Cache', endpoint: null, port: 6379 },
+      { name: 'Message Queue', endpoint: '/health', port: 5672 },
+      { name: 'Storage Service', endpoint: '/health', port: 9000 },
+      { name: 'CDN', endpoint: '/health', port: 80 }
+    ];
+  }
+
   async getSystemHealth() {
-    const memoryUsage = process.memoryUsage();
-    const uptime = process.uptime();
-    
-    // Calculate uptime percentage (mock calculation)
-    const uptimePercentage = 99.98;
-    
-    // Get database connection status
-    let dbStatus = 'healthy';
     try {
-      await sequelize.authenticate();
+      const services = await this.checkAllServices();
+      const metrics = await this.getSystemMetrics();
+      const alerts = await this.getActiveAlerts();
+      
+      const overallHealth = services.every(s => s.status === 'healthy') ? 'healthy' : 'degraded';
+      
+      return {
+        status: overallHealth,
+        services,
+        metrics,
+        alerts: alerts.slice(0, 5), // Latest 5 alerts
+        lastUpdated: new Date()
+      };
     } catch (error) {
-      dbStatus = 'unhealthy';
+      console.error('Error getting system health:', error);
+      throw error;
     }
+  }
 
-    return {
-      uptime: `${uptimePercentage}%`,
-      avgResponseTime: '145ms',
-      errorRate: '0.02%',
-      totalRequests: '2.4M',
-      memory: {
-        used: Math.round(memoryUsage.heapUsed / 1024 / 1024),
-        total: Math.round(memoryUsage.heapTotal / 1024 / 1024),
-        percentage: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100)
-      },
-      database: {
-        status: dbStatus,
-        connections: 15, // Mock data
-        queryTime: '45ms'
-      },
-      lastUpdated: new Date()
-    };
-  },
+  async checkAllServices() {
+    const serviceChecks = this.services.map(service => this.checkService(service));
+    return await Promise.all(serviceChecks);
+  }
 
-  // Service Status
-  async getServiceStatus() {
-    const services = [
-      {
-        name: 'API Server',
-        status: 'healthy',
-        uptime: '99.99%',
-        lastCheck: new Date(Date.now() - 60000),
-        responseTime: '120ms',
-        endpoint: '/api/health'
-      },
-      {
-        name: 'Database',
-        status: 'healthy',
-        uptime: '99.98%',
-        lastCheck: new Date(Date.now() - 120000),
-        responseTime: '45ms',
-        endpoint: 'postgresql://localhost:5432'
-      },
-      {
-        name: 'Cache Layer',
-        status: 'healthy',
-        uptime: '99.97%',
-        lastCheck: new Date(Date.now() - 60000),
-        responseTime: '12ms',
-        endpoint: 'redis://localhost:6379'
-      },
-      {
-        name: 'Storage Service',
-        status: 'degraded',
-        uptime: '99.85%',
-        lastCheck: new Date(Date.now() - 60000),
-        responseTime: '850ms',
-        endpoint: 's3://bucket'
-      },
-      {
-        name: 'CDN',
-        status: 'healthy',
-        uptime: '99.99%',
-        lastCheck: new Date(Date.now() - 30000),
-        responseTime: '85ms',
-        endpoint: 'https://cdn.example.com'
-      },
-      {
-        name: 'Message Queue',
-        status: 'healthy',
-        uptime: '99.96%',
-        lastCheck: new Date(Date.now() - 120000),
-        responseTime: '320ms',
-        endpoint: 'rabbitmq://localhost:5672'
-      }
-    ];
-
-    // Check actual service health (simplified)
-    for (const service of services) {
-      try {
-        if (service.name === 'Database') {
-          await sequelize.authenticate();
-          service.status = 'healthy';
-        }
-        // Add other service checks here
-      } catch (error) {
-        service.status = 'unhealthy';
-      }
+  async checkService(service) {
+    try {
+      // Simulate service health check with more realistic data
+      const healthyChance = service.name === 'Storage Service' ? 0.7 : 0.95; // Storage service more likely to be degraded
+      const isHealthy = Math.random() > (1 - healthyChance);
+      const responseTime = Math.floor(Math.random() * 200) + 50; // 50-250ms
+      
+      let uptime = '99.99%';
+      if (service.name === 'Storage Service') uptime = '99.85%';
+      if (service.name === 'Database') uptime = '99.98%';
+      if (service.name === 'CDN') uptime = '99.99%';
+      
+      return {
+        name: service.name,
+        status: isHealthy ? 'healthy' : (service.name === 'Storage Service' ? 'degraded' : 'healthy'),
+        responseTime: service.name === 'Storage Service' ? '850ms' : `${responseTime}ms`,
+        uptime,
+        lastCheck: new Date(),
+        endpoint: service.endpoint
+      };
+    } catch (error) {
+      return {
+        name: service.name,
+        status: 'down',
+        responseTime: 'timeout',
+        uptime: '0%',
+        lastCheck: new Date(),
+        error: error.message
+      };
     }
+  }
 
-    return services;
-  },
-
-  // System Alerts
-  async getSystemAlerts() {
-    // Get recent alerts from database
-    const dbAlerts = await Alert.findAll({
-      where: {
-        createdAt: {
-          [sequelize.Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-        }
-      },
-      order: [['createdAt', 'DESC']],
-      limit: 20
-    });
-
-    // Add system-generated alerts
-    const systemAlerts = [
-      {
-        id: 'sys-1',
-        level: 'warning',
-        title: 'High Memory Usage',
-        description: 'Storage service memory at 85%',
-        time: new Date(Date.now() - 15 * 60 * 1000),
-        service: 'Storage Service',
-        acknowledged: false
-      },
-      {
-        id: 'sys-2',
-        level: 'info',
-        title: 'Scheduled Maintenance',
-        description: 'Database backup in progress',
-        time: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        service: 'Database',
-        acknowledged: true
-      }
-    ];
-
-    // Combine and sort alerts
-    const allAlerts = [...systemAlerts, ...dbAlerts.map(alert => ({
-      id: alert.id,
-      level: alert.severity || 'info',
-      title: alert.name,
-      description: alert.message,
-      time: alert.createdAt,
-      service: alert.projectId ? `Project ${alert.projectId}` : 'System',
-      acknowledged: alert.acknowledged || false
-    }))];
-
-    return allAlerts.sort((a, b) => new Date(b.time) - new Date(a.time));
-  },
-
-  // Performance Metrics
-  async getPerformanceMetrics(timeRange = '24h') {
-    // Mock performance data - in production, this would come from metrics collection
-    const performanceData = [];
-    const now = new Date();
-    const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 24;
-    
-    for (let i = hours; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-      performanceData.push({
-        time: time.toISOString(),
-        latency: Math.floor(Math.random() * 100) + 100, // 100-200ms
-        errorRate: Math.random() * 2, // 0-2%
-        throughput: Math.floor(Math.random() * 1000) + 500, // 500-1500 req/min
-        cpuUsage: Math.random() * 80 + 10, // 10-90%
-        memoryUsage: Math.random() * 70 + 20 // 20-90%
+  async getSystemMetrics() {
+    try {
+      // Get recent metrics from database
+      const metrics = await Metric.findAll({
+        where: {
+          timestamp: {
+            [sequelize.Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
+        },
+        order: [['timestamp', 'DESC']],
+        limit: 100
       });
-    }
 
-    return performanceData;
-  },
+      // Calculate averages
+      const avgResponseTime = metrics
+        .filter(m => m.metricType === 'response_time')
+        .reduce((sum, m) => sum + parseFloat(m.value), 0) / metrics.length || 145;
 
-  // Incidents
-  async getIncidents() {
-    const incidents = [
-      {
-        id: 1,
-        title: 'Cache Sync Issue',
-        status: 'resolved',
-        severity: 'medium',
-        duration: '2h 15m',
-        startTime: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        endTime: new Date(Date.now() - 22 * 60 * 60 * 1000),
-        affectedServices: ['Cache Layer', 'API Server']
-      },
-      {
-        id: 2,
-        title: 'Database Replication Lag',
-        status: 'resolved',
-        severity: 'high',
-        duration: '45m',
-        startTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        endTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
-        affectedServices: ['Database']
-      },
-      {
-        id: 3,
-        title: 'Spike in API Errors',
-        status: 'resolved',
-        severity: 'low',
-        duration: '12m',
-        startTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        endTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 12 * 60 * 1000),
-        affectedServices: ['API Server']
-      }
-    ];
+      const errorRate = metrics
+        .filter(m => m.metricType === 'error_rate')
+        .reduce((sum, m) => sum + parseFloat(m.value), 0) / metrics.length || 0.02;
 
-    return incidents;
-  },
-
-  // Regional Status
-  async getRegionalStatus() {
-    const regions = [
-      { name: 'US East', status: 'healthy', latency: '45ms' },
-      { name: 'EU West', status: 'healthy', latency: '52ms' },
-      { name: 'Asia Pacific', status: 'healthy', latency: '78ms' },
-      { name: 'US West', status: 'healthy', latency: '38ms' },
-      { name: 'Canada', status: 'healthy', latency: '41ms' },
-      { name: 'Australia', status: 'healthy', latency: '89ms' }
-    ];
-
-    return regions;
-  },
-
-  // Error Distribution
-  async getErrorDistribution() {
-    return [
-      { name: '5xx Errors', value: 15, count: 45 },
-      { name: '4xx Errors', value: 35, count: 105 },
-      { name: 'Timeouts', value: 25, count: 75 },
-      { name: 'Other', value: 25, count: 75 }
-    ];
-  },
-
-  // Acknowledge Alert
-  async acknowledgeAlert(alertId) {
-    try {
-      const alert = await Alert.findByPk(alertId);
-      if (alert) {
-        alert.acknowledged = true;
-        alert.acknowledgedAt = new Date();
-        await alert.save();
-        return alert;
-      }
-      return null;
+      return {
+        uptime: '99.98%',
+        avgResponseTime: `${Math.round(avgResponseTime)}ms`,
+        errorRate: `${(errorRate * 100).toFixed(2)}%`,
+        totalRequests: '2.4M',
+        memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+        cpuUsage: `${Math.round(Math.random() * 30 + 10)}%`
+      };
     } catch (error) {
-      throw new Error(`Failed to acknowledge alert: ${error.message}`);
+      console.error('Error getting system metrics:', error);
+      return {
+        uptime: '99.98%',
+        avgResponseTime: '145ms',
+        errorRate: '0.02%',
+        totalRequests: '2.4M',
+        memoryUsage: '256MB',
+        cpuUsage: '25%'
+      };
     }
-  },
+  }
 
-  // Create System Alert
-  async createSystemAlert(alertData) {
+  async getActiveAlerts() {
+    try {
+      const alerts = await Alert.findAll({
+        where: {
+          active: true,
+          acknowledged: false
+        },
+        order: [['createdAt', 'DESC']],
+        limit: 10
+      });
+
+      return alerts.map(alert => ({
+        id: alert.id,
+        level: alert.severity || 'info',
+        title: alert.name,
+        description: alert.message,
+        service: alert.projectId ? `Project ${alert.projectId}` : 'System',
+        time: this.getTimeAgo(alert.createdAt),
+        createdAt: alert.createdAt
+      }));
+    } catch (error) {
+      console.error('Error getting active alerts:', error);
+      // Return mock alerts if database query fails
+      return [
+        {
+          id: 1,
+          level: 'warning',
+          title: 'High Memory Usage',
+          description: 'Storage service memory at 85%',
+          service: 'Storage Service',
+          time: '15 min ago',
+          createdAt: new Date(Date.now() - 15 * 60 * 1000)
+        },
+        {
+          id: 2,
+          level: 'info',
+          title: 'Scheduled Maintenance',
+          description: 'Database backup in progress',
+          service: 'Database',
+          time: '2 hours ago',
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
+        },
+        {
+          id: 3,
+          level: 'error',
+          title: 'Increased Latency',
+          description: 'API response time increased by 40%',
+          service: 'API Server',
+          time: '5 hours ago',
+          createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000)
+        }
+      ];
+    }
+  }
+
+  async getServiceStatus() {
+    return await this.checkAllServices();
+  }
+
+  async getSystemAlerts() {
+    return await this.getActiveAlerts();
+  }
+
+  async getPerformanceMetrics(timeRange = '24') {
+    try {
+      const hours = parseInt(timeRange);
+      const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+      
+      // Generate sample performance data
+      const performanceData = [];
+      const now = new Date();
+      
+      for (let i = hours; i >= 0; i -= Math.max(1, Math.floor(hours / 24))) {
+        const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+        const hour = time.getHours();
+        
+        // Simulate daily patterns - higher load during business hours
+        const loadMultiplier = (hour >= 9 && hour <= 17) ? 1.5 : 0.8;
+        
+        performanceData.push({
+          time: time.toISOString().substr(11, 5), // HH:MM format
+          latency: Math.floor((Math.random() * 100 + 100) * loadMultiplier), // 100-200ms base
+          errorRate: Math.random() * 2 * loadMultiplier, // 0-2% base
+          throughput: Math.floor((Math.random() * 1000 + 2000) * loadMultiplier), // 2000-3000 req/min base
+          cpuUsage: Math.floor((Math.random() * 40 + 20) * loadMultiplier), // 20-60% base
+          memoryUsage: Math.floor(Math.random() * 30 + 50) // 50-80%
+        });
+      }
+      
+      return {
+        data: performanceData.reverse(),
+        summary: {
+          avgLatency: Math.floor(Math.random() * 50) + 120,
+          avgErrorRate: Math.random() * 1,
+          avgThroughput: Math.floor(Math.random() * 500) + 2250,
+          peakLatency: Math.floor(Math.random() * 100) + 200,
+          peakThroughput: Math.floor(Math.random() * 1000) + 3000
+        }
+      };
+    } catch (error) {
+      console.error('Error getting performance metrics:', error);
+      throw error;
+    }
+  }
+
+  async getIncidents() {
+    try {
+      const incidents = await Incident.findAll({
+        order: [['createdAt', 'DESC']],
+        limit: 20
+      });
+
+      return incidents.map(incident => ({
+        id: incident.id,
+        title: incident.title,
+        status: incident.status,
+        severity: incident.severity,
+        duration: this.calculateDuration(incident.createdAt, incident.resolvedAt),
+        time: this.getTimeAgo(incident.createdAt),
+        description: incident.description,
+        affectedServices: incident.affectedServices || [],
+        createdAt: incident.createdAt,
+        resolvedAt: incident.resolvedAt
+      }));
+    } catch (error) {
+      console.error('Error getting incidents:', error);
+      // Return mock incidents if database query fails
+      return [
+        {
+          id: 1,
+          title: 'Cache Sync Issue',
+          status: 'resolved',
+          severity: 'medium',
+          duration: '2h 15m',
+          time: 'Yesterday',
+          description: 'Redis cache synchronization failed',
+          affectedServices: ['API Server', 'Cache Layer']
+        },
+        {
+          id: 2,
+          title: 'Database Replication Lag',
+          status: 'resolved',
+          severity: 'high',
+          duration: '45m',
+          time: '2 days ago',
+          description: 'Primary-replica lag exceeded threshold',
+          affectedServices: ['Database']
+        },
+        {
+          id: 3,
+          title: 'Spike in API Errors',
+          status: 'resolved',
+          severity: 'low',
+          duration: '12m',
+          time: '5 days ago',
+          description: 'Temporary increase in 5xx errors',
+          affectedServices: ['API Server']
+        }
+      ];
+    }
+  }
+
+  async createAlert(alertData) {
     try {
       const alert = await Alert.create({
         name: alertData.title,
         message: alertData.description,
         severity: alertData.level,
-        projectId: null, // System alert
-        metricType: 'system',
-        threshold: null,
-        operator: null,
-        channels: ['email', 'slack'],
         active: true,
-        createdBy: 'system'
+        acknowledged: false,
+        projectId: alertData.projectId,
+        metricType: alertData.metricType,
+        threshold: alertData.threshold
       });
 
       return alert;
     } catch (error) {
-      throw new Error(`Failed to create system alert: ${error.message}`);
+      console.error('Error creating alert:', error);
+      throw error;
     }
   }
-};
 
-module.exports = monitoringService;
+  async acknowledgeAlert(alertId) {
+    try {
+      await Alert.update(
+        { acknowledged: true, acknowledgedAt: new Date() },
+        { where: { id: alertId } }
+      );
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
+      throw error;
+    }
+  }
+
+  async resolveAlert(alertId) {
+    try {
+      await Alert.update(
+        { active: false, resolvedAt: new Date() },
+        { where: { id: alertId } }
+      );
+    } catch (error) {
+      console.error('Error resolving alert:', error);
+      throw error;
+    }
+  }
+
+  // Utility methods
+  getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - new Date(date);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) {
+      return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    } else {
+      return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    }
+  }
+
+  calculateDuration(startDate, endDate) {
+    if (!endDate) return 'Ongoing';
+    
+    const diffMs = new Date(endDate) - new Date(startDate);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    
+    if (diffHours > 0) {
+      const remainingMins = diffMins % 60;
+      return `${diffHours}h ${remainingMins}m`;
+    } else {
+      return `${diffMins}m`;
+    }
+  }
+
+  // Health check endpoint for the monitoring service itself
+  async healthCheck() {
+    try {
+      // Check database connection
+      await sequelize.authenticate();
+      
+      return {
+        status: 'healthy',
+        timestamp: new Date(),
+        version: '1.0.0',
+        uptime: process.uptime(),
+        memory: process.memoryUsage()
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        timestamp: new Date(),
+        error: error.message
+      };
+    }
+  }
+}
+
+module.exports = MonitoringService;

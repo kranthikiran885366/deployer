@@ -18,6 +18,9 @@ function serializeState(s) {
     envVars: s.envVars,
     domains: s.domains,
     team: s.team,
+    teamGroups: s.teamGroups,
+    ssoConfig: s.ssoConfig,
+    billingContacts: s.billingContacts,
     settings: s.settings,
     billing: s.billing,
     logs: s.logs,
@@ -36,6 +39,9 @@ export const useAppStore = create((set, get) => ({
   envVars: [],
   domains: [],
   team: [],
+  teamGroups: [],
+  ssoConfig: null,
+  billingContacts: [],
   settings: { autoDeploy: true, notifySlack: false },
   billing: { plan: "Hobby", paymentMethod: null, usage: { bandwidthGb: 1, functionsMs: 1500, storageGb: 0.2 } },
   logs: [],
@@ -268,6 +274,75 @@ export const useAppStore = create((set, get) => ({
       localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
     } catch {}
   },
+
+  // Team Groups
+  setTeamGroups: (groups) => set({ teamGroups: groups }),
+  addTeamGroup: (group) => {
+    set((s) => ({ teamGroups: [...s.teamGroups, { ...group, id: nanoid(6) }] }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  updateTeamGroup: (id, data) => {
+    set((s) => ({ teamGroups: s.teamGroups.map((g) => g.id === id ? { ...g, ...data } : g) }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  removeTeamGroup: (id) => {
+    set((s) => ({ teamGroups: s.teamGroups.filter((g) => g.id !== id) }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+
+  // SSO Configuration
+  setSSOConfig: (config) => set({ ssoConfig: config }),
+  updateSSOConfig: (data) => {
+    set((s) => ({ ssoConfig: { ...s.ssoConfig, ...data } }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  clearSSOConfig: () => {
+    set({ ssoConfig: null })
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+
+  // Billing Contacts
+  setBillingContacts: (contacts) => set({ billingContacts: contacts }),
+  addBillingContact: (contact) => {
+    set((s) => ({ billingContacts: [...s.billingContacts, { ...contact, id: nanoid(6) }] }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  updateBillingContact: (id, data) => {
+    set((s) => ({ billingContacts: s.billingContacts.map((c) => c.id === id ? { ...c, ...data } : c) }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  removeBillingContact: (id) => {
+    set((s) => ({ billingContacts: s.billingContacts.filter((c) => c.id !== id) }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+  setDefaultBillingContact: (id) => {
+    set((s) => ({ 
+      billingContacts: s.billingContacts.map((c) => ({
+        ...c,
+        isDefault: c.id === id
+      }))
+    }))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState(get())))
+    } catch {}
+  },
+
   setSetting: (key, value) => {
     set((s) => ({ settings: { ...s.settings, [key]: value } }))
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,22 +8,81 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Edit2, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, AlertCircle } from 'lucide-react';
 
 export default function TeamPermissionsPage() {
-  const [teamMembers, setTeamMembers] = useState([
+  const [teamData, setTeamData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+
+  useEffect(() => {
+    fetchTeamData();
+  }, []);
+
+  const fetchTeamData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/team', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch team data');
+      }
+      
+      const data = await response.json();
+      setTeamData(data);
+    } catch (error) {
+      console.error('Error fetching team data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading team data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">Error loading team data: {error}</p>
+          <Button onClick={fetchTeamData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { members = [], teams = [], invitations = [] } = teamData || {};
+
+  // Fallback data
+  const fallbackMembers = [
     { id: 1, name: 'Sarah Chen', email: 'sarah@company.com', role: 'Admin', status: 'active', joinedDate: '90 days ago' },
     { id: 2, name: 'Alex Rodriguez', email: 'alex@company.com', role: 'Developer', status: 'active', joinedDate: '60 days ago' },
     { id: 3, name: 'Jordan Kim', email: 'jordan@company.com', role: 'Viewer', status: 'active', joinedDate: '30 days ago' },
-  ]);
+  ];
 
-  const [teams, setTeams] = useState([
+  const fallbackTeams = [
     { id: 1, name: 'Platform Engineers', members: 8, permissions: ['deploy', 'read:logs', 'read:projects'], created: '120 days ago' },
     { id: 2, name: 'DevOps Team', members: 5, permissions: ['deploy', 'read:logs', 'read:projects', 'write:projects', 'read:metrics'], created: '90 days ago' },
-  ]);
+  ];
 
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedMember, setSelectedMember] = useState(null);
+  const teamMembers = members.length > 0 ? members : fallbackMembers;
+  const teamGroups = teams.length > 0 ? teams : fallbackTeams;
 
   const roles = [
     { value: 'admin', label: 'Admin', description: 'Full access to all features', permissions: ['deploy', 'read:logs', 'read:projects', 'write:projects', 'read:metrics', 'admin'] },
@@ -90,10 +149,10 @@ export default function TeamPermissionsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {[
+                {(invitations.length > 0 ? invitations : [
                   { email: 'newdev@company.com', role: 'Developer', invitedBy: 'Sarah Chen', invitedDate: '2 days ago' },
                   { email: 'qa@company.com', role: 'Viewer', invitedBy: 'Alex Rodriguez', invitedDate: '1 day ago' },
-                ].map((invite, idx) => (
+                ]).map((invite, idx) => (
                   <Card key={idx} className="border">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
@@ -120,11 +179,11 @@ export default function TeamPermissionsPage() {
         <TabsContent value="teams" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Teams ({teams.length})</CardTitle>
+              <CardTitle>Teams ({teamGroups.length})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {teams.map((team) => (
+                {teamGroups.map((team) => (
                   <Card key={team.id} className="border cursor-pointer hover:bg-gray-50">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">

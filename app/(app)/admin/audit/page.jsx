@@ -1,20 +1,76 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, Search, ChevronDown } from 'lucide-react';
+import { Download, Search, ChevronDown, AlertCircle } from 'lucide-react';
 
 export default function AuditCompliancePage() {
+  const [auditData, setAuditData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedAction, setSelectedAction] = useState('');
 
-  const auditLogs = [
+  useEffect(() => {
+    fetchAuditData();
+  }, []);
+
+  const fetchAuditData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/audit', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch audit data');
+      }
+      
+      const data = await response.json();
+      setAuditData(data);
+    } catch (error) {
+      console.error('Error fetching audit data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading audit data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">Error loading audit data: {error}</p>
+          <Button onClick={fetchAuditData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { logs = [] } = auditData || {};
+
+  // Fallback data
+  const fallbackLogs = [
     {
       id: 1,
       user: 'Sarah Chen',
@@ -76,6 +132,8 @@ export default function AuditCompliancePage() {
       details: 'Invited dev@company.com as Developer'
     },
   ];
+
+  const auditLogs = logs.length > 0 ? logs : fallbackLogs;
 
   const complianceStatus = [
     { name: 'GDPR', status: 'compliant', lastAudit: '30 days ago', expiresIn: '90 days' },

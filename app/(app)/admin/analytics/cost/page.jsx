@@ -1,19 +1,83 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Zap, AlertCircle } from 'lucide-react';
 
 export default function CostAnalyticsPage() {
   const [timeRange, setTimeRange] = useState('30');
   const [selectedProject, setSelectedProject] = useState('all');
+  const [costData, setCostData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const costData = [
+  useEffect(() => {
+    fetchCostAnalytics();
+  }, [timeRange]);
+
+  const fetchCostAnalytics = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admin/analytics/cost?timeRange=${timeRange}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch cost analytics');
+      }
+      
+      const data = await response.json();
+      setCostData(data);
+    } catch (error) {
+      console.error('Error fetching cost analytics:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading cost analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">Error loading cost analytics: {error}</p>
+          <Button onClick={fetchCostAnalytics}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'];
+  
+  const { 
+    trends = [], 
+    breakdown = [], 
+    projects = [], 
+    drivers = [], 
+    summary = {} 
+  } = costData || {};
+
+  // Fallback data if API doesn't return data
+  const fallbackTrends = [
     { month: 'Jan', compute: 1200, storage: 400, bandwidth: 300, database: 500 },
     { month: 'Feb', compute: 1500, storage: 450, bandwidth: 350, database: 600 },
     { month: 'Mar', compute: 1800, storage: 500, bandwidth: 400, database: 700 },
@@ -22,14 +86,14 @@ export default function CostAnalyticsPage() {
     { month: 'Jun', compute: 2200, storage: 600, bandwidth: 500, database: 900 },
   ];
 
-  const costBreakdown = [
+  const fallbackBreakdown = [
     { name: 'Compute', value: 45, cost: '$4,500' },
     { name: 'Storage', value: 20, cost: '$2,000' },
     { name: 'Bandwidth', value: 18, cost: '$1,800' },
     { name: 'Database', value: 17, cost: '$1,700' },
   ];
 
-  const projectCosts = [
+  const fallbackProjects = [
     { name: 'Production API', cost: 2500, trend: 'up', percentage: 12 },
     { name: 'Website Hosting', cost: 1800, trend: 'down', percentage: 5 },
     { name: 'Data Pipeline', cost: 1200, trend: 'up', percentage: 8 },
@@ -38,15 +102,18 @@ export default function CostAnalyticsPage() {
     { name: 'Dev Environment', cost: 450, trend: 'down', percentage: 2 },
   ];
 
-  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'];
-
-  const topCostDrivers = [
+  const fallbackDrivers = [
     { resource: 'Large Database Instance', cost: 1500, percentage: 15, status: 'high' },
     { resource: 'GPU Compute Instances', cost: 1200, percentage: 12, status: 'high' },
     { resource: 'CDN Usage', cost: 800, percentage: 8, status: 'medium' },
     { resource: 'API Gateway', cost: 650, percentage: 6.5, status: 'medium' },
     { resource: 'Storage Buckets', cost: 500, percentage: 5, status: 'low' },
   ];
+
+  const displayTrends = trends.length > 0 ? trends : fallbackTrends;
+  const displayBreakdown = breakdown.length > 0 ? breakdown : fallbackBreakdown;
+  const displayProjects = projects.length > 0 ? projects : fallbackProjects;
+  const displayDrivers = drivers.length > 0 ? drivers : fallbackDrivers;
 
   return (
     <div className="space-y-6 p-6">
@@ -75,9 +142,9 @@ export default function CostAnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Cost (30d)</p>
-                <p className="text-3xl font-bold">$10,450</p>
+                <p className="text-3xl font-bold">${summary.totalCost?.toLocaleString() || '10,450'}</p>
                 <div className="flex items-center gap-1 mt-2 text-sm text-red-600">
-                  <TrendingUp className="w-4 h-4" /> +8.5% vs last month
+                  <TrendingUp className="w-4 h-4" /> {summary.monthlyChange || '+8.5%'} vs last month
                 </div>
               </div>
               <DollarSign className="w-8 h-8 text-blue-600 opacity-20" />
@@ -90,9 +157,9 @@ export default function CostAnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Daily Average</p>
-                <p className="text-3xl font-bold">$348</p>
+                <p className="text-3xl font-bold">${summary.dailyAverage || '348'}</p>
                 <div className="flex items-center gap-1 mt-2 text-sm text-green-600">
-                  <TrendingDown className="w-4 h-4" /> -2% vs last 30d
+                  <TrendingDown className="w-4 h-4" /> {summary.dailyChange || '-2%'} vs last 30d
                 </div>
               </div>
               <Zap className="w-8 h-8 text-purple-600 opacity-20" />
@@ -104,8 +171,8 @@ export default function CostAnalyticsPage() {
           <CardContent className="pt-6">
             <div>
               <p className="text-sm text-gray-600">Compute Costs</p>
-              <p className="text-3xl font-bold">$4.5K</p>
-              <p className="text-xs text-gray-500 mt-2">43% of total</p>
+              <p className="text-3xl font-bold">${((summary.computeCost || 4500) / 1000).toFixed(1)}K</p>
+              <p className="text-xs text-gray-500 mt-2">{summary.computePercentage || '43'}% of total</p>
             </div>
           </CardContent>
         </Card>
@@ -114,8 +181,8 @@ export default function CostAnalyticsPage() {
           <CardContent className="pt-6">
             <div>
               <p className="text-sm text-gray-600">Forecast (30d)</p>
-              <p className="text-3xl font-bold">$11.2K</p>
-              <p className="text-xs text-orange-600 mt-2">+7% projected</p>
+              <p className="text-3xl font-bold">${((summary.forecast || 11200) / 1000).toFixed(1)}K</p>
+              <p className="text-xs text-orange-600 mt-2">{summary.forecastChange || '+7%'} projected</p>
             </div>
           </CardContent>
         </Card>
@@ -137,7 +204,7 @@ export default function CostAnalyticsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={costData}>
+                <BarChart data={displayTrends}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
@@ -161,7 +228,7 @@ export default function CostAnalyticsPage() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={costBreakdown}
+                      data={displayBreakdown}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -170,7 +237,7 @@ export default function CostAnalyticsPage() {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {costBreakdown.map((entry, index) => (
+                      {displayBreakdown.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -186,7 +253,7 @@ export default function CostAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {costBreakdown.map((item) => (
+                  {displayBreakdown.map((item) => (
                     <div key={item.name} className="flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-sm">{item.name}</p>
@@ -209,7 +276,7 @@ export default function CostAnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {projectCosts.map((project) => (
+                {displayProjects.map((project) => (
                   <Card key={project.name} className="border">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
@@ -242,7 +309,7 @@ export default function CostAnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {topCostDrivers.map((driver) => (
+                {displayDrivers.map((driver) => (
                   <Card key={driver.resource} className="border">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
