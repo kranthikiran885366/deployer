@@ -17,16 +17,7 @@ export default function UptimeDashboardPage() {
   const [error, setError] = useState('');
   const [timeRange, setTimeRange] = useState('30d'); // 7d, 30d, 90d
 
-  // Removed mock data - using backend integration
-    uptime24h: 99.98,
-    uptime7d: 99.92,
-    uptime30d: 99.89,
-    uptime90d: 99.76,
-    averageResponseTime: 145,
-    lastIncident: '2024-12-20T14:20:00Z',
-    totalDowntime30d: 158, // minutes
-    incidents30d: 3
-  };
+  // Backend integration - no mock data
 
   const mockSlaStatus = {
     targetUptime: 99.95,
