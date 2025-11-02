@@ -30,7 +30,8 @@ export default function CustomMetricsPage() {
     enabled: true
   });
 
-  // Removed mock data - using backend integration
+  // Mock data now using backend integration instead
+  const mockMetrics = [
     {
       id: 1,
       name: 'Request Queue Length',

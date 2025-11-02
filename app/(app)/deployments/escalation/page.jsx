@@ -31,10 +31,10 @@ export default function EscalationPoliciesPage() {
 
   const [selectedPolicy, setSelectedPolicy] = useState(null);
 
-  // Removed mock data - using backend integration
-    {
-      id: 1,
-      name: 'Critical Incident Escalation',
+  // Mock data for development
+  const mockPolicies = [{
+    id: 1,
+    name: 'Critical Incident Escalation',
       description: 'Immediate escalation for critical infrastructure issues',
       severity: 'critical',
       enabled: true,
