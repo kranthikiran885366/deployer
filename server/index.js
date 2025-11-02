@@ -88,6 +88,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() })
 })
 
+app.get("/healthz", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() })
+})
+
 // Authentication Routes
 app.use("/auth", authRoutes)
 

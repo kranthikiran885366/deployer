@@ -30,7 +30,8 @@ export default function WebhooksManagementPage() {
     timeout: 30
   });
 
-  // Removed mock data - using backend integration
+  // Mock data for development
+  const mockWebhooks = [
     {
       id: 1,
       url: 'https://api.example.com/webhooks/deployment',
@@ -84,6 +85,13 @@ export default function WebhooksManagementPage() {
       successRate: 96.2
     }
   ];
+
+  // Use mock data during development
+  useEffect(() => {
+    if (!selectedDeployment) {
+      setWebhooks(mockWebhooks);
+    }
+  }, [selectedDeployment]);
 
   // Mock delivery logs
   const mockDeliveryLogs = [
