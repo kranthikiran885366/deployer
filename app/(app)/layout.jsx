@@ -257,39 +257,41 @@ export default function AppLayout({ children }) {
       </aside>
       
       {/* Main content */}
-      <main className="md:ml-64">
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="md:hidden"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <Menu className="size-4" />
-              </Button>
-              <div className="hidden md:block">
-                <h1 className="font-semibold text-lg">Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Unified Cloud Dashboard</p>
+      <main className="md:ml-64 min-h-svh flex flex-col w-full">
+        <div className="flex-1 w-full">
+          {/* Header */}
+          <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="md:hidden"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <Menu className="size-4" />
+                </Button>
+                <div className="hidden md:block">
+                  <h1 className="font-semibold text-lg">Dashboard</h1>
+                  <p className="text-sm text-muted-foreground">Unified Cloud Dashboard</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm">
+                  <Bell className="size-4" />
+                </Button>
+                <Link href="/" className="text-sm text-primary hover:underline">
+                  View Site
+                </Link>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm">
-                <Bell className="size-4" />
-              </Button>
-              <Link href="/" className="text-sm text-primary hover:underline">
-                View Site
-              </Link>
-            </div>
+          </header>
+          
+          {/* Page content */}
+          <div className="">
+            {children}
           </div>
-        </header>
-        
-        {/* Page content */}
-        <div className="p-4 md:p-6">
-          {children}
         </div>
       </main>
     </div>

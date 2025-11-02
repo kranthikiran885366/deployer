@@ -33,7 +33,7 @@ COPY --from=backend /server/node_modules /app/server/node_modules
 COPY server /app/server
 
 # Copy env template
-COPY .env.example /app/.env.production
+COPY .env.production /app/.env.production
 
 # Set ownership
 RUN chown -R nodejs:nodejs /app

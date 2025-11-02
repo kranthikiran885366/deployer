@@ -112,29 +112,33 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+    <div className="min-h-svh bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30 relative overflow-hidden">
+      {/* Enhanced background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-blue-400/10 via-purple-500/10 to-cyan-400/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-green-400/10 via-emerald-500/10 to-blue-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: "1s"}} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-violet-400/5 to-pink-400/5 rounded-full blur-2xl animate-pulse" style={{animationDelay: "2s"}} />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-blue-500/8 via-purple-500/8 to-cyan-500/8 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-emerald-500/8 via-green-500/8 to-teal-500/8 rounded-full blur-3xl animate-pulse" style={{animationDelay: "1s"}} />
+        <div className="absolute top-1/3 right-1/3 w-64 h-64 bg-gradient-to-r from-violet-500/5 to-pink-500/5 rounded-full blur-2xl animate-pulse" style={{animationDelay: "2s"}} />
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:20px_20px] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)]" />
       </div>
       
-      <div className="relative p-4 md:p-6 space-y-6 md:space-y-8">
-        <div className="space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Sparkles className="w-7 h-7 text-white" />
+      <div className="relative p-6 space-y-8">
+        <div className="space-y-8">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div className="space-y-4">
+              <div className="flex items-center gap-6">
+                <div className="relative group">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-500 rounded-3xl flex items-center justify-center shadow-xl shadow-blue-500/25 group-hover:shadow-2xl group-hover:shadow-blue-500/40 transition-all duration-500">
+                    <Sparkles className="w-8 h-8 text-white group-hover:scale-110 transition-transform duration-300" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background animate-pulse" />
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-3 border-white dark:border-slate-900 animate-pulse shadow-lg" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-500 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-500" />
                 </div>
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground via-primary to-foreground/70 bg-clip-text text-transparent">
+                <div className="space-y-2">
+                  <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-900 via-blue-600 to-purple-600 dark:from-white dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent leading-tight">
                     Welcome back! 👋
                   </h1>
-                  <p className="text-muted-foreground text-base md:text-lg mt-1">Here's what's happening with your projects today.</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-lg md:text-xl font-medium">Here's what's happening with your projects today.</p>
                 </div>
               </div>
             </div>

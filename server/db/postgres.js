@@ -1,15 +1,18 @@
-const { Pool } = require('pg');
+const { Sequelize } = require('sequelize');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/deployment_framework',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+const sequelize = new Sequelize(
+  process.env.DATABASE_URL || 'postgresql://localhost:5432/deployment_framework',
+  {
+    dialect: 'postgres',
+    dialectOptions: process.env.NODE_ENV === 'production' 
+      ? { ssl: { rejectUnauthorized: false } }
+      : {},
+    pool: {
+      max: 20,
+      idle: 30000,
+      acquire: 60000,
+    },
+  }
+);
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-  getClient: () => pool.connect(),
-  pool
-};
+module.exports = { sequelize };

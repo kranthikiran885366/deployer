@@ -41,7 +41,14 @@ const app = express()
 
 // Middleware
 // Configure CORS. During local development allow the frontend dev server(s).
-const allowedOrigins = [config.clientUrl, 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://192.168.0.1:3001']
+const allowedOrigins = [
+  config.clientUrl, 
+  'http://localhost:3001', 
+  'http://127.0.0.1:3001', 
+  'http://192.168.0.1:3001',
+  process.env.CORS_ORIGIN,
+  'https://your-frontend.vercel.app'
+].filter(Boolean)
 app.use(
   cors({
     origin: function (origin, callback) {

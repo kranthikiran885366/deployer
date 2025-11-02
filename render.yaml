@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: clouddeck-backend
+    env: node
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clouddeck-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://your-frontend.vercel.app
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: clouddeck-redis
+          property: connectionString
+
+databases:
+  - name: clouddeck-db
+    databaseName: clouddeck
+    user: clouddeck_user
+
+services:
+  - type: redis
+    name: clouddeck-redis
+    maxmemoryPolicy: allkeys-lru
