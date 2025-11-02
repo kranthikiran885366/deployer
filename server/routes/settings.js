@@ -1,14 +1,18 @@
-const express = require("express")
-const router = express.Router()
-const settingsController = require("../controllers/settingsController")
-const authMiddleware = require("../middleware/auth")
+const express = require('express');
+const router = express.Router();
+const settingsController = require('../controllers/settingsController');
+const authMiddleware = require('../middleware/auth');
+const userSettingsRoutes = require('./userSettingsRoutes');
+
+// User-specific settings
+router.use('/user', userSettingsRoutes);
 
 // Environment variables
-router.post("/env-vars", authMiddleware, settingsController.createEnvVar)
-router.get("/env-vars", authMiddleware, settingsController.listEnvVars)
-router.get("/env-vars/:varId", authMiddleware, settingsController.getEnvVar)
-router.patch("/env-vars/:varId", authMiddleware, settingsController.updateEnvVar)
-router.delete("/env-vars/:varId", authMiddleware, settingsController.deleteEnvVar)
+router.post('/env-vars', authMiddleware, settingsController.createEnvVar);
+router.get('/env-vars', authMiddleware, settingsController.listEnvVars);
+router.get('/env-vars/:varId', authMiddleware, settingsController.getEnvVar);
+router.patch('/env-vars/:varId', authMiddleware, settingsController.updateEnvVar);
+router.delete('/env-vars/:varId', authMiddleware, settingsController.deleteEnvVar);
 
 // Domains
 router.post("/domains", authMiddleware, settingsController.addDomain)

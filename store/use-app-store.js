@@ -55,81 +55,20 @@ export const useAppStore = create((set, get) => ({
         return
       } catch {}
     }
-    const deployments = Array.from({ length: 8 }).map((_, i) => ({
-      id: `dep_${nanoid(6)}`,
-      project: ["clouddeck-web", "clouddeck-api", "docs"][i % 3],
-      version: `v${1 + i}.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
-      status: ["Running", "Building", "Failed"][i % 3],
-      time: `${30 - i}m ago`,
-    }))
-    const projects = [
-      { id: nanoid(6), name: "clouddeck-web", framework: "Next.js", region: "iad1" },
-      { id: nanoid(6), name: "clouddeck-api", framework: "Express", region: "fra1" },
-      { id: nanoid(6), name: "docs", framework: "React", region: "sfo1" },
-    ]
-    const databases = [
-      {
-        id: nanoid(6),
-        type: "PostgreSQL",
-        size: "Small",
-        region: "iad1",
-        connectionString: "postgres://user:pass@db.example:5432/app",
-      },
-      {
-        id: nanoid(6),
-        type: "Redis",
-        size: "Small",
-        region: "fra1",
-        connectionString: "redis://default:pass@redis.example:6379",
-      },
-    ]
-    const recentActivity = deployments.slice(0, 5).map((d) => ({
-      id: nanoid(6),
-      message: `${d.project} ${d.version} ${d.status === "Failed" ? "failed" : "deployed"}`,
-      when: d.time,
-    }))
-    const functions = [
-      { id: nanoid(6), name: "hello-world", path: "/api/hello", enabled: true, lastRunAt: null, lastStatus: null },
-    ]
-    const cronjobs = [
-      { id: nanoid(6), name: "cleanup", schedule: "0 0 * * *", target: "/api/cleanup", enabled: true, lastRunAt: null },
-    ]
-    const envVars = [
-      {
-        id: nanoid(6),
-        name: "NEXT_PUBLIC_API_URL",
-        value: "https://api.example.com",
-        scope: "prod",
-        createdAt: new Date().toISOString(),
-      },
-    ]
-    const domains = [
-      {
-        id: nanoid(6),
-        host: "app.example.com",
-        status: "pending",
-        dnsRecords: [{ type: "CNAME", host: "app", value: "cname.clouddeck.dev" }],
-      },
-    ]
-    const team = [{ id: nanoid(6), email: "owner@example.com", role: "owner", invitedAt: new Date().toISOString() }]
-    const settings = { autoDeploy: true, notifySlack: false }
-    const billing = { plan: "Hobby", paymentMethod: null, usage: { bandwidthGb: 1, functionsMs: 1500, storageGb: 0.2 } }
-    const logs = [
-      { id: String(Date.now()), service: "clouddeck-web", level: "info", message: "App booted", timestamp: Date.now() },
-    ]
+    // Initialize with empty arrays - data will be loaded from API
     set({
-      deployments,
-      projects,
-      databases,
-      recentActivity,
-      functions,
-      cronjobs,
-      envVars,
-      domains,
-      team,
-      settings,
-      billing,
-      logs,
+      deployments: [],
+      projects: [],
+      databases: [],
+      recentActivity: [],
+      functions: [],
+      cronjobs: [],
+      envVars: [],
+      domains: [],
+      team: [],
+      settings: { autoDeploy: true, notifySlack: false },
+      billing: { plan: "Hobby", paymentMethod: null, usage: { bandwidthGb: 0, functionsMs: 0, storageGb: 0 } },
+      logs: [],
       _initialized: true,
     })
   },

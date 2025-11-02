@@ -26,7 +26,17 @@ import {
   X,
   User,
   LogOut,
-  Bell
+  Bell,
+  Shield,
+  BarChart3,
+  GitBranch,
+  Puzzle,
+  HelpCircle,
+  Server,
+  Lock,
+  Gauge,
+  Box,
+  Code2
 } from "lucide-react"
 
 const navSections = [
@@ -35,6 +45,8 @@ const navSections = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/projects", label: "Projects", icon: FolderOpen },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/status", label: "Status", icon: Server },
     ]
   },
   {
@@ -43,6 +55,8 @@ const navSections = [
       { href: "/deployments", label: "Deployments", icon: Rocket },
       { href: "/functions", label: "Functions", icon: Zap },
       { href: "/cronjobs", label: "Cron Jobs", icon: Clock },
+      { href: "/builds", label: "Builds", icon: GitBranch },
+      { href: "/ci-cd", label: "CI/CD", icon: GitBranch },
     ]
   },
   {
@@ -50,6 +64,7 @@ const navSections = [
     items: [
       { href: "/databases", label: "Databases", icon: Database },
       { href: "/media-cdn", label: "Media CDN", icon: Image },
+      { href: "/forms", label: "Forms", icon: Box },
     ]
   },
   {
@@ -58,6 +73,7 @@ const navSections = [
       { href: "/domains", label: "Domains", icon: Globe },
       { href: "/env", label: "Environment", icon: Settings },
       { href: "/multi-region", label: "Multi-region", icon: MapPin },
+      { href: "/providers", label: "Providers", icon: Puzzle },
     ]
   },
   {
@@ -67,20 +83,83 @@ const navSections = [
       { href: "/blueprints", label: "Blueprints", icon: Layers },
       { href: "/isr-config", label: "ISR Config", icon: Settings },
       { href: "/edge-handlers", label: "Edge Handlers", icon: Zap },
+      { href: "/api-graph", label: "API Graph", icon: Code2 },
     ]
   },
   {
-    title: "Monitoring",
+    title: "Integrations",
+    items: [
+      { href: "/integrations", label: "All Integrations", icon: Puzzle },
+      { href: "/integrations/git", label: "Git Integration", icon: GitBranch },
+      { href: "/integrations/webhooks", label: "Webhooks", icon: Activity },
+      { href: "/integrations/grafana", label: "Grafana", icon: BarChart3 },
+      { href: "/integrations/prometheus", label: "Prometheus", icon: BarChart3 },
+      { href: "/integrations/datadog", label: "Datadog", icon: Activity },
+      { href: "/integrations/newrelic", label: "New Relic", icon: BarChart3 },
+      { href: "/integrations/custom", label: "Custom", icon: Puzzle },
+    ]
+  },
+  {
+    title: "Security & Access",
+    items: [
+      { href: "/auth/ldap", label: "LDAP", icon: Lock },
+      { href: "/auth/saml", label: "SAML", icon: Lock },
+      { href: "/auth/sso", label: "SSO", icon: Lock },
+      { href: "/auth/webauthn", label: "WebAuthn", icon: Lock },
+      { href: "/auth/mfa-setup", label: "MFA Setup", icon: Lock },
+      { href: "/ssh-access", label: "SSH Access", icon: Lock },
+      { href: "/team/roles", label: "Roles", icon: Shield },
+    ]
+  },
+  {
+    title: "Monitoring & Alerts",
     items: [
       { href: "/logs", label: "Logs", icon: FileText },
-      { href: "/api-graph", label: "Analytics", icon: Activity },
+      { href: "/monitoring/alerts", label: "Alerts", icon: Activity },
+      { href: "/deployments/alerts", label: "Deployment Alerts", icon: Rocket },
+      { href: "/deployments/incidents", label: "Incidents", icon: Activity },
+      { href: "/deployments/uptime", label: "Uptime", icon: Gauge },
+    ]
+  },
+  {
+    title: "Admin",
+    items: [
+      { href: "/admin", label: "Admin Panel", icon: Shield },
+      { href: "/admin/monitoring", label: "System Health", icon: Server },
+      { href: "/admin/team", label: "Admin Team", icon: Users },
+      { href: "/admin/audit", label: "Audit Logs", icon: FileText },
+      { href: "/admin/settings", label: "Admin Settings", icon: Settings },
+      { href: "/admin/security", label: "Security", icon: Lock },
+      { href: "/admin/compliance", label: "Compliance", icon: Shield },
+      { href: "/admin/costs", label: "Costs", icon: CreditCard },
     ]
   },
   {
     title: "Team & Billing",
     items: [
       { href: "/team", label: "Team", icon: Users },
+      { href: "/team/members", label: "Members", icon: Users },
+      { href: "/team/invitations", label: "Invitations", icon: Users },
+      { href: "/team/groups", label: "Groups", icon: Users },
+      { href: "/team/organization", label: "Organization", icon: Users },
+      { href: "/team/sso", label: "Team SSO", icon: Lock },
+      { href: "/team/api-keys", label: "API Keys", icon: Code2 },
       { href: "/billing", label: "Billing", icon: CreditCard },
+      { href: "/billing/invoices", label: "Invoices", icon: FileText },
+      { href: "/billing/payment-methods", label: "Payment Methods", icon: CreditCard },
+      { href: "/billing/plans", label: "Plans", icon: CreditCard },
+      { href: "/billing/usage", label: "Usage", icon: Gauge },
+    ]
+  },
+  {
+    title: "Settings & Support",
+    items: [
+      { href: "/settings", label: "Settings", icon: Settings },
+      { href: "/settings/profile", label: "Profile", icon: User },
+      { href: "/settings/appearance", label: "Appearance", icon: Gauge },
+      { href: "/settings/notifications", label: "Notifications", icon: Bell },
+      { href: "/settings/security", label: "Security", icon: Lock },
+      { href: "/help", label: "Help", icon: HelpCircle },
     ]
   }
 ]

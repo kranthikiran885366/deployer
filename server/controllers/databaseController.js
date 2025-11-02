@@ -331,3 +331,130 @@ exports.listDatabaseUsers = async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 }
+
+// Templates
+exports.getTemplates = async (req, res) => {
+  try {
+    const templates = await databaseService.getTemplates()
+    res.json(templates)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+exports.createFromTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params
+    const { projectId, name, config } = req.body
+    const { userId } = req
+
+    const database = await databaseService.createFromTemplate(templateId, {
+      projectId,
+      name,
+      config,
+      createdBy: userId
+    })
+
+    res.status(201).json(database)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+}
+
+// Migrations
+exports.getMigrations = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const migrations = await databaseService.getMigrations(databaseId)
+    res.json(migrations)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+exports.runMigration = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const migrationData = req.body
+    const { userId } = req
+
+    const result = await databaseService.runMigration(databaseId, migrationData)
+
+    await AuditLog.create({
+      userId,
+      action: "DATABASE_MIGRATION_RUN",
+      resourceType: "Database",
+      resourceId: databaseId,
+      metadata: { migrationName: migrationData.name }
+    })
+
+    res.json(result)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+}
+
+// Scaling
+exports.getScalingOptions = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const options = await databaseService.getScalingOptions(databaseId)
+    res.json(options)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+exports.scaleDatabase = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const { size } = req.body
+    const { userId } = req
+
+    const result = await databaseService.scaleDatabase(databaseId, size)
+
+    await AuditLog.create({
+      userId,
+      action: "DATABASE_SCALED",
+      resourceType: "Database",
+      resourceId: databaseId,
+      metadata: { newSize: size }
+    })
+
+    res.json(result)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+}
+
+// Compliance
+exports.getCompliance = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const compliance = await databaseService.getCompliance(databaseId)
+    res.json(compliance)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+exports.runComplianceCheck = async (req, res) => {
+  try {
+    const { databaseId } = req.params
+    const { userId } = req
+
+    const result = await databaseService.runComplianceCheck(databaseId)
+
+    await AuditLog.create({
+      userId,
+      action: "DATABASE_COMPLIANCE_CHECK",
+      resourceType: "Database",
+      resourceId: databaseId,
+      metadata: { checkId: result.checkId }
+    })
+
+    res.json(result)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+}

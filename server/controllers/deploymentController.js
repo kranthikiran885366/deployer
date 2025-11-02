@@ -1,8 +1,12 @@
-// Deployment Controller
-const deploymentService = require("../services/deploymentService")
-const Project = require("../models/Project")
+const BaseController = require('./BaseController');
+const deploymentService = require("../services/deploymentService");
+const Project = require("../models/Project");
 
-class DeploymentController {
+class DeploymentController extends BaseController {
+    constructor() {
+        super();
+        BaseController.bindMethods(this);
+    }
   async createDeployment(req, res, next) {
     try {
       const { projectId, gitCommit, gitBranch, gitAuthor, commitMessage, canaryDeployment } = req.body
@@ -15,6 +19,20 @@ class DeploymentController {
         canaryDeployment: canaryDeployment || false,
       })
       res.status(201).json(deployment)
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getAllDeployments(req, res, next) {
+    try {
+      const { limit = 50, status, environment } = req.query
+      const filters = {}
+      if (status) filters.status = status
+      if (environment) filters.environment = environment
+
+      const deployments = await deploymentService.getAllDeployments(Number.parseInt(limit), filters)
+      res.json(deployments)
     } catch (error) {
       next(error)
     }

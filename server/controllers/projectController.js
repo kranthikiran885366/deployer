@@ -13,10 +13,40 @@ class ProjectController {
 
   async getProjects(req, res, next) {
     try {
-      const projects = await projectService.getProjects(req.user.userId)
-      res.json(projects)
+      if (!req.user || !req.user.userId) {
+        return res.status(401).json({
+          error: "Authentication required",
+          code: "AUTH_REQUIRED"
+        });
+      }
+
+      const { overview } = req.query
+      if (overview === 'true') {
+        const data = await projectService.getProjectsOverview(req.user.userId)
+        if (!data) {
+          return res.status(404).json({
+            error: "No projects found",
+            code: "PROJECTS_NOT_FOUND"
+          });
+        }
+        res.json(data)
+      } else {
+        const projects = await projectService.getProjects(req.user.userId)
+        if (!projects) {
+          return res.status(404).json({
+            error: "No projects found",
+            code: "PROJECTS_NOT_FOUND"
+          });
+        }
+        res.json(projects)
+      }
     } catch (error) {
-      next(error)
+      console.error('Project controller error:', error);
+      res.status(500).json({
+        error: "Failed to fetch projects",
+        code: "INTERNAL_SERVER_ERROR",
+        details: error.message
+      });
     }
   }
 

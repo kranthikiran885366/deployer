@@ -33,4 +33,20 @@ router.get("/:databaseId/connections", authMiddleware, databaseController.getCon
 router.post("/:databaseId/users", authMiddleware, databaseController.createDatabaseUser)
 router.get("/:databaseId/users", authMiddleware, databaseController.listDatabaseUsers)
 
+// Templates
+router.get("/templates", authMiddleware, databaseController.getTemplates)
+router.post("/templates/:templateId/create", authMiddleware, databaseController.createFromTemplate)
+
+// Migrations
+router.get("/:databaseId/migrations", authMiddleware, databaseController.getMigrations)
+router.post("/:databaseId/migrations", authMiddleware, databaseController.runMigration)
+
+// Scaling
+router.get("/:databaseId/scaling-options", authMiddleware, databaseController.getScalingOptions)
+router.post("/:databaseId/scale", authMiddleware, databaseController.scaleDatabase)
+
+// Compliance
+router.get("/:databaseId/compliance", authMiddleware, databaseController.getCompliance)
+router.post("/:databaseId/compliance/check", authMiddleware, databaseController.runComplianceCheck)
+
 module.exports = router

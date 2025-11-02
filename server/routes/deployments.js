@@ -52,6 +52,11 @@ router.post("/",
   deploymentController.createDeployment
 )
 
+router.get("/",
+  authMiddleware,
+  deploymentController.getAllDeployments
+)
+
 router.get("/project/:projectId",
   authMiddleware,
   deploymentController.getDeployments

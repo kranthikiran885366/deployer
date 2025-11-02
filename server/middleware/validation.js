@@ -39,10 +39,19 @@ const validateMetricRequest = (req, res, next) => {
   next()
 }
 
+const validateUpdateSettings = (req, res, next) => {
+  // Skip empty updates
+  if (!req.body || Object.keys(req.body).length === 0) {
+    return res.status(400).json({ error: "No settings provided for update" })
+  }
+  next()
+}
+
 module.exports = {
   validateDeploymentRequest,
   validateProjectRequest,
   validateFunctionRequest,
   validateBuildRequest,
   validateMetricRequest,
+  validateUpdateSettings,
 }

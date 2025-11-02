@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect } from "react"
-import { Github, Rocket, Database, BarChart3, Shield, Server, Zap, ArrowRight, Star, Users, Globe, CheckCircle } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Github, Rocket, Database, BarChart3, Shield, Server, Zap, ArrowRight, Star, Users, Globe, CheckCircle, HelpCircle, Activity, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAppStore } from "@/store/use-app-store"
@@ -23,7 +23,7 @@ export default function LandingPage() {
             <span className="sr-only">CloudDeck</span>
             ⚡ CloudDeck
           </Link>
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">
               Features
             </a>
@@ -35,6 +35,12 @@ export default function LandingPage() {
             </a>
             <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
               Dashboard
+            </Link>
+            <Link href="/status" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+              <Activity className="size-4" /> Status
+            </Link>
+            <Link href="/help" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+              <HelpCircle className="size-4" /> Help
             </Link>
           </nav>
           <div className="flex items-center gap-3">
@@ -171,15 +177,18 @@ export default function LandingPage() {
                 </div>
               </CardContent>
             </Card>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Users className="size-4" />
-                <span>10,000+ developers</span>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Users className="size-4" />
+                  <span>10,000+ developers</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="size-4" />
+                  <span>99.9% uptime</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Globe className="size-4" />
-                <span>99.9% uptime</span>
-              </div>
+              <StatusSummary />
             </div>
           </div>
         </div>
@@ -239,6 +248,27 @@ export default function LandingPage() {
               desc="Organize your work and collaborate with your team seamlessly."
               link="/projects"
               gradient="from-pink-500 to-rose-600"
+            />
+            <Feature
+              icon={<HelpCircle className="size-6" />}
+              title="Help & Support"
+              desc="Comprehensive documentation, FAQs, tutorials, and dedicated support to help you succeed."
+              link="/help"
+              gradient="from-indigo-500 to-purple-600"
+            />
+            <Feature
+              icon={<Activity className="size-6" />}
+              title="System Status"
+              desc="Real-time monitoring of all services, incident tracking, and uptime metrics."
+              link="/status"
+              gradient="from-teal-500 to-green-600"
+            />
+            <Feature
+              icon={<Bell className="size-6" />}
+              title="Notifications"
+              desc="Stay informed with customizable alerts for deployments, incidents, and system updates."
+              link="/notifications"
+              gradient="from-amber-500 to-orange-600"
             />
           </div>
         </div>
@@ -528,4 +558,89 @@ function PricingCard({ name, price, period, features, highlight }) {
       </CardContent>
     </Card>
   )
+}
+
+function StatusSummary() {
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/status/system');
+        if (!res.ok) throw new Error('Failed to fetch status');
+        const data = await res.json();
+        setStatus(data);
+        setError(null);
+      } catch (error) {
+        console.error('Error fetching status:', error);
+        setError('System status unavailable');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="bg-card/50">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-gray-200 animate-pulse"></div>
+            <div className="text-sm text-muted-foreground">Loading system status...</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="bg-card/50">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-red-100"></div>
+            <div className="text-sm text-muted-foreground">{error}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!status) return null;
+
+  const statusColor = 
+    status?.overallStatus === 'operational' ? 'text-green-600' :
+    status?.overallStatus === 'degraded' ? 'text-yellow-600' : 'text-red-600';
+
+  const statusBg = 
+    status?.overallStatus === 'operational' ? 'bg-green-100' :
+    status?.overallStatus === 'degraded' ? 'bg-yellow-100' : 'bg-red-100';
+
+  return (
+    <Link href="/status">
+      <Card className="bg-card/50 hover:bg-card transition-colors">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-2 h-2 rounded-full ${statusBg}`}></div>
+            <div className="text-sm">
+              <span className={`font-medium ${statusColor} capitalize`}>
+                {status.overallStatus}
+              </span>
+              <span className="text-muted-foreground ml-2">
+                • Updated {new Date(status.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
+          <ArrowRight className="size-4 text-muted-foreground" />
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }

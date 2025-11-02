@@ -1,282 +1,404 @@
-// Deployment Service
-const Deployment = require("../models/Deployment")
-const Project = require("../models/Project")
-const Log = require("../models/Log")
-const BuildCache = require("../models/BuildCache")
-const DeploymentAnalytics = require("../models/DeploymentAnalytics")
-const deployerFactory = require("./deployers/deployerFactory")
+const mongoose = require('mongoose');
+const Deployment = require('../models/Deployment');
+const Project = require('../models/Project');
+const Build = require('../models/Build');
+const Environment = require('../models/Environment');
+const buildService = require('./buildService');
+const notificationService = require('./notificationService');
+const webhookService = require('./webhookService');
+const logService = require('./logService');
 
 class DeploymentService {
-  async createDeployment(data) {
-    const deployment = new Deployment({
-      projectId: data.projectId,
-      gitCommit: data.gitCommit,
-      gitBranch: data.gitBranch,
-      gitAuthor: data.gitAuthor,
-      commitMessage: data.commitMessage,
-      environment: data.environment || "preview",
-      deploymentContext: data.deploymentContext || "production",
-      canaryDeployment: data.canaryDeployment || false,
-      canaryPercentage: data.canaryPercentage || 10,
-      provider: data.provider || "custom",
-      providerConfig: data.providerConfig || {},
-      status: "pending",
-    })
+    async createDeployment(projectId, environmentId, options = {}) {
+        const {
+            branch = 'main',
+            commitSha = null,
+            triggeredBy = 'manual',
+            userId = null,
+            buildConfig = {},
+            environmentVariables = {},
+            deploymentType = 'standard'
+        } = options;
 
-    await deployment.save()
+        const project = await Project.findById(projectId);
+        if (!project) throw new Error('Project not found');
 
-    await Log.create({
-      projectId: data.projectId,
-      deploymentId: deployment._id,
-      service: "deployment",
-      level: "info",
-      message: `Deployment started for commit ${data.gitCommit} by ${data.gitAuthor}`,
-    })
+        const environment = await Environment.findById(environmentId);
+        if (!environment) throw new Error('Environment not found');
 
-    return deployment
-  }
+        const deployment = await Deployment.create({
+            projectId,
+            environmentId,
+            branch,
+            commitSha,
+            status: 'pending',
+            triggeredBy,
+            userId,
+            buildConfig,
+            environmentVariables,
+            deploymentType,
+            startTime: new Date(),
+            logs: []
+        });
 
-  async getDeployments(projectId, limit = 50, filters = {}) {
-    const query = { projectId, ...filters }
-    return await Deployment.find(query).sort({ createdAt: -1 }).limit(limit).populate("deployedBy", "name email")
-  }
+        // Start deployment process
+        this.processDeployment(deployment._id).catch(error => {
+            console.error(`Deployment ${deployment._id} failed:`, error);
+        });
 
-  async getDeploymentById(id) {
-    return await Deployment.findById(id).populate("deployedBy", "name email")
-  }
-
-  async updateDeploymentStatus(id, status, metrics = {}) {
-    const deployment = await Deployment.findByIdAndUpdate(
-      id,
-      {
-        status,
-        buildTime: metrics.buildTime,
-        deployTime: metrics.deployTime,
-        buildCacheHitRate: metrics.cacheHitRate,
-        buildSize: metrics.buildSize,
-      },
-      { new: true },
-    )
-
-    await Log.create({
-      deploymentId: id,
-      service: "deployment",
-      level: "info",
-      message: `Deployment status updated to ${status}`,
-    })
-
-    if (status === "running") {
-      await this.recordAnalytics(deployment.projectId, id, metrics)
+        return deployment;
     }
 
-    return deployment
-  }
+    async processDeployment(deploymentId) {
+        const deployment = await Deployment.findById(deploymentId).populate('projectId environmentId');
+        if (!deployment) throw new Error('Deployment not found');
 
-  async rollbackDeployment(id, reason) {
-    const deployment = await Deployment.findById(id)
-    if (!deployment) throw new Error("Deployment not found")
+        try {
+            await this.updateDeploymentStatus(deploymentId, 'building');
+            
+            // Create build
+            const build = await buildService.createBuild(deployment.projectId._id, {
+                branch: deployment.branch,
+                commitSha: deployment.commitSha,
+                deploymentId: deployment._id,
+                buildConfig: deployment.buildConfig
+            });
 
-    const previousDeployment = await Deployment.findOne({
-      projectId: deployment.projectId,
-      _id: { $ne: id },
-      status: "running",
-    }).sort({ createdAt: -1 })
+            deployment.buildId = build._id;
+            await deployment.save();
 
-    if (!previousDeployment) {
-      throw new Error("No previous deployment to rollback to")
+            // Wait for build completion
+            const completedBuild = await this.waitForBuild(build._id);
+            
+            if (completedBuild.status === 'failed') {
+                throw new Error('Build failed');
+            }
+
+            await this.updateDeploymentStatus(deploymentId, 'deploying');
+
+            // Deploy to environment
+            const deployResult = await this.deployToEnvironment(deployment, completedBuild);
+            
+            await this.updateDeploymentStatus(deploymentId, 'success', {
+                deployUrl: deployResult.url,
+                deploymentSize: deployResult.size,
+                endTime: new Date()
+            });
+
+            // Trigger webhooks
+            await webhookService.triggerWebhook(deployment.projectId._id, 'deployment.success', {
+                deployment: deployment.toObject(),
+                environment: deployment.environmentId.name,
+                url: deployResult.url
+            });
+
+            // Send notifications
+            await notificationService.sendDeploymentNotification(deployment, 'success');
+
+        } catch (error) {
+            await this.updateDeploymentStatus(deploymentId, 'failed', {
+                error: error.message,
+                endTime: new Date()
+            });
+
+            await webhookService.triggerWebhook(deployment.projectId._id, 'deployment.failed', {
+                deployment: deployment.toObject(),
+                error: error.message
+            });
+
+            await notificationService.sendDeploymentNotification(deployment, 'failed', error.message);
+            throw error;
+        }
     }
 
-    await this.updateDeploymentStatus(id, "rolled-back")
-    await Deployment.updateOne({ _id: id }, { rollbackReason: reason })
+    async deployToEnvironment(deployment, build) {
+        const environment = deployment.environmentId;
+        const project = deployment.projectId;
 
-    await Log.create({
-      deploymentId: id,
-      service: "deployment",
-      level: "warn",
-      message: `Deployment rolled back: ${reason}`,
-    })
+        // Get deployer adapter based on environment type
+        const deployerFactory = require('./deployers/deployerFactory');
+        const deployer = deployerFactory.getDeployer(environment.provider);
 
-    return previousDeployment
-  }
+        const deployConfig = {
+            projectName: project.name,
+            environmentName: environment.name,
+            buildArtifacts: build.artifacts,
+            environmentVariables: {
+                ...environment.variables,
+                ...deployment.environmentVariables
+            },
+            domains: environment.domains || [],
+            region: environment.region || 'us-east-1'
+        };
 
-  async checkBuildCache(projectId, cacheKey, framework) {
-    const cache = await BuildCache.findOne({ projectId, cacheKey })
-    if (cache) {
-      await BuildCache.updateOne({ _id: cache._id }, { lastUsedAt: new Date(), $inc: { hitCount: 1 } })
-      return cache
+        const result = await deployer.deploy(deployConfig);
+        
+        // Update environment with latest deployment info
+        await Environment.findByIdAndUpdate(environment._id, {
+            lastDeploymentId: deployment._id,
+            lastDeployedAt: new Date(),
+            currentUrl: result.url,
+            status: 'active'
+        });
+
+        return result;
     }
-    return null
-  }
 
-  async saveBuildCache(projectId, cacheKey, framework, buildSteps, size) {
-    return await BuildCache.create({
-      projectId,
-      cacheKey,
-      framework,
-      buildSteps,
-      cacheSize: size,
-      lastUsedAt: new Date(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-    })
-  }
-
-  async recordAnalytics(projectId, deploymentId, metrics) {
-    const analyticsData = [
-      { projectId, deploymentId, metricType: "response_time", value: metrics.responseTime || 145 },
-      { projectId, deploymentId, metricType: "memory_usage", value: metrics.memoryUsage || 256 },
-      { projectId, deploymentId, metricType: "cpu_usage", value: metrics.cpuUsage || 45 },
-    ]
-    return await DeploymentAnalytics.insertMany(analyticsData)
-  }
-
-  async getDeploymentAnalytics(projectId, timeRange = 7) {
-    const startDate = new Date(Date.now() - timeRange * 24 * 60 * 60 * 1000)
-    return await DeploymentAnalytics.find({
-      projectId,
-      timestamp: { $gte: startDate },
-    }).sort({ timestamp: -1 })
-  }
-
-  async addDeploymentLog(deploymentId, log) {
-    return await Log.create({
-      deploymentId,
-      service: log.service,
-      level: log.level || "info",
-      message: log.message,
-    })
-  }
-
-  async getDeploymentLogs(deploymentId) {
-    return await Log.find({ deploymentId }).sort({ createdAt: 1 })
-  }
-
-  async getDeploymentMetrics(deploymentId) {
-    const deployment = await this.getDeploymentById(deploymentId)
-    const analytics = await DeploymentAnalytics.find({ deploymentId })
-    return {
-      deployment,
-      metrics: analytics,
-      summary: {
-        buildTime: deployment.buildTime,
-        deployTime: deployment.deployTime,
-        cacheHitRate: deployment.buildCacheHitRate,
-        buildSize: deployment.buildSize,
-      },
+    async waitForBuild(buildId, timeout = 600000) {
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < timeout) {
+            const build = await Build.findById(buildId);
+            if (!build) throw new Error('Build not found');
+            
+            if (build.status === 'success' || build.status === 'failed') {
+                return build;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        
+        throw new Error('Build timeout');
     }
-  }
 
-  /**
-   * Start deployment using provider adapter
-   */
-  async startDeploymentWithProvider(deploymentId, project, providerConfig = {}) {
-    const deployment = await this.getDeploymentById(deploymentId)
-    if (!deployment) throw new Error("Deployment not found")
+    async updateDeploymentStatus(deploymentId, status, updates = {}) {
+        const deployment = await Deployment.findByIdAndUpdate(
+            deploymentId,
+            { status, ...updates },
+            { new: true }
+        );
 
-    const provider = deployment.provider || "custom"
+        await logService.addDeploymentLog(deploymentId, `Deployment status changed to: ${status}`);
+        return deployment;
+    }
 
-    // If using a provider, call the adapter
-    if (provider !== "custom") {
-      try {
-        await this.updateDeploymentStatus(deploymentId, "building")
+    async getAllDeployments(limit = 50, filters = {}) {
+        const query = { ...filters };
+        return await Deployment.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .populate('projectId', 'name')
+            .populate('environmentId', 'name type')
+            .populate('buildId', 'status duration')
+            .lean();
+    }
 
-        const result = await deployerFactory.createDeployment(provider, project, {
-          ...deployment.providerConfig,
-          ...providerConfig,
-        })
+    async getDeployments(projectId, options = {}) {
+        const {
+            page = 1,
+            limit = 20,
+            environment = null,
+            status = null,
+            branch = null
+        } = options;
 
-        // Update deployment with provider info
+        const query = { projectId };
+        if (environment) query.environmentId = environment;
+        if (status) query.status = status;
+        if (branch) query.branch = branch;
+
+        const deployments = await Deployment.find(query)
+            .populate('environmentId', 'name type')
+            .populate('buildId', 'status duration')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .skip((page - 1) * limit)
+            .lean();
+
+        const total = await Deployment.countDocuments(query);
+
+        return {
+            deployments,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    async getDeployment(deploymentId) {
+        const deployment = await Deployment.findById(deploymentId)
+            .populate('projectId', 'name')
+            .populate('environmentId', 'name type provider')
+            .populate('buildId')
+            .populate('userId', 'name email');
+
+        if (!deployment) throw new Error('Deployment not found');
+        return deployment;
+    }
+
+    async rollbackDeployment(deploymentId, targetDeploymentId) {
+        const currentDeployment = await this.getDeployment(deploymentId);
+        const targetDeployment = await this.getDeployment(targetDeploymentId);
+
+        if (currentDeployment.environmentId._id.toString() !== targetDeployment.environmentId._id.toString()) {
+            throw new Error('Deployments must be in the same environment');
+        }
+
+        // Create rollback deployment
+        const rollbackDeployment = await this.createDeployment(
+            currentDeployment.projectId._id,
+            currentDeployment.environmentId._id,
+            {
+                branch: targetDeployment.branch,
+                commitSha: targetDeployment.commitSha,
+                triggeredBy: 'rollback',
+                deploymentType: 'rollback',
+                rollbackFromId: deploymentId,
+                rollbackToId: targetDeploymentId
+            }
+        );
+
+        return rollbackDeployment;
+    }
+
+    async cancelDeployment(deploymentId) {
+        const deployment = await Deployment.findById(deploymentId);
+        if (!deployment) throw new Error('Deployment not found');
+
+        if (!['pending', 'building', 'deploying'].includes(deployment.status)) {
+            throw new Error('Cannot cancel deployment in current status');
+        }
+
+        const cancelPromises = [];
+
+        // Cancel build if in progress
+        if (deployment.buildId) {
+            cancelPromises.push(buildService.cancelBuild(deployment.buildId));
+        }
+
+        cancelPromises.push(
+            this.updateDeploymentStatus(deploymentId, 'cancelled', {
+                endTime: new Date()
+            }),
+            notificationService.sendDeploymentNotification(deployment, 'cancelled')
+        );
+
+        await Promise.all(cancelPromises);
+        return deployment;
+    }
+
+    async getDeploymentLogs(deploymentId) {
+        const deployment = await Deployment.findById(deploymentId);
+        if (!deployment) throw new Error('Deployment not found');
+        return deployment.logs;
+    }
+
+    async getEnvironmentStatus(environmentId) {
+        const environment = await Environment.findById(environmentId)
+            .populate('lastDeploymentId');
+        
+        if (!environment) throw new Error('Environment not found');
+        
+        const activeDeployments = await Deployment.countDocuments({
+            environmentId,
+            status: { $in: ['pending', 'building', 'deploying'] }
+        });
+
+        return {
+            environment: environment.name,
+            status: environment.status,
+            lastDeployment: environment.lastDeploymentId,
+            activeDeployments,
+            currentUrl: environment.currentUrl
+        };
+    }
+
+    async getDeploymentStats(projectId, timeRange = 30) {
+        const since = new Date(Date.now() - timeRange * 24 * 60 * 60 * 1000);
+
+        const stats = await Deployment.aggregate([
+            {
+                $match: {
+                    projectId: mongoose.Types.ObjectId(projectId),
+                    createdAt: { $gte: since }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    successful: { $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] } },
+                    failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+                    avgDuration: { $avg: { $subtract: ['$endTime', '$startTime'] } }
+                }
+            }
+        ]);
+
+        const result = stats[0] || { total: 0, successful: 0, failed: 0, avgDuration: 0 };
+        result.successRate = result.total > 0 ? (result.successful / result.total) * 100 : 0;
+        result.avgDuration = Math.round(result.avgDuration / 1000); // Convert to seconds
+
+        return result;
+    }
+
+    async getDeploymentsByEnvironment(projectId) {
+        return Deployment.aggregate([
+            {
+                $match: { projectId: mongoose.Types.ObjectId(projectId) }
+            },
+            {
+                $lookup: {
+                    from: 'environments',
+                    localField: 'environmentId',
+                    foreignField: '_id',
+                    as: 'environment'
+                }
+            },
+            {
+                $unwind: '$environment'
+            },
+            {
+                $group: {
+                    _id: '$environmentId',
+                    environmentName: { $first: '$environment.name' },
+                    total: { $sum: 1 },
+                    successful: { $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] } },
+                    lastDeployment: { $max: '$createdAt' }
+                }
+            }
+        ]);
+    }
+
+    async promoteDeployment(deploymentId, targetEnvironmentId) {
+        const sourceDeployment = await this.getDeployment(deploymentId);
+        const targetEnvironment = await Environment.findById(targetEnvironmentId);
+
+        if (!targetEnvironment) throw new Error('Target environment not found');
+        if (sourceDeployment.status !== 'success') {
+            throw new Error('Can only promote successful deployments');
+        }
+
+        const promotionDeployment = await this.createDeployment(
+            sourceDeployment.projectId._id,
+            targetEnvironmentId,
+            {
+                branch: sourceDeployment.branch,
+                commitSha: sourceDeployment.commitSha,
+                triggeredBy: 'promotion',
+                deploymentType: 'promotion',
+                promotedFromId: deploymentId,
+                buildConfig: sourceDeployment.buildConfig,
+                environmentVariables: sourceDeployment.environmentVariables
+            }
+        );
+
+        return promotionDeployment;
+    }
+
+    async addDeploymentLog(deploymentId, message, level = 'info') {
         await Deployment.findByIdAndUpdate(deploymentId, {
-          providerDeploymentId: result.providerDeploymentId,
-          providerMetadata: result.metadata,
-          previewUrl: result.url,
-          productionUrl: result.url,
-          status: result.status,
-        })
-
-        await Log.create({
-          deploymentId,
-          service: "deployment",
-          level: "info",
-          message: `Deployment sent to ${provider}: ${result.providerDeploymentId}`,
-        })
-
-        return result
-      } catch (error) {
-        await this.updateDeploymentStatus(deploymentId, "failed")
-        throw error
-      }
+            $push: {
+                logs: {
+                    timestamp: new Date(),
+                    level,
+                    message
+                }
+            }
+        });
     }
-
-    // For custom deployments, just update status
-    await this.updateDeploymentStatus(deploymentId, "building")
-    return { status: "building", message: "Custom deployment started" }
-  }
-
-  /**
-   * Poll provider for deployment status updates
-   */
-  async pollDeploymentStatus(deploymentId) {
-    const deployment = await this.getDeploymentById(deploymentId)
-    if (!deployment || !deployment.providerDeploymentId) {
-      throw new Error("Deployment or provider ID not found")
-    }
-
-    try {
-      const status = await deployerFactory.getDeploymentStatus(deployment.provider, deployment.providerDeploymentId)
-
-      await Deployment.findByIdAndUpdate(deploymentId, {
-        status: status.status,
-        previewUrl: status.url || deployment.previewUrl,
-      })
-
-      if (status.metadata) {
-        await Log.create({
-          deploymentId,
-          service: "deployment",
-          level: "info",
-          message: `Status update: ${status.status} (${Math.round(status.progress || 0)}%)`,
-        })
-      }
-
-      return status
-    } catch (error) {
-      throw new Error(`Failed to poll deployment status: ${error.message}`)
-    }
-  }
-
-  /**
-   * Get deployment logs from provider
-   */
-  async getProviderLogs(deploymentId, options = {}) {
-    const deployment = await this.getDeploymentById(deploymentId)
-    if (!deployment || !deployment.providerDeploymentId) {
-      throw new Error("Deployment or provider ID not found")
-    }
-
-    return await deployerFactory.getDeploymentLogs(deployment.provider, deployment.providerDeploymentId, options)
-  }
-
-  /**
-   * Cancel deployment via provider
-   */
-  async cancelDeploymentViaProvider(deploymentId) {
-    const deployment = await this.getDeploymentById(deploymentId)
-    if (!deployment || !deployment.providerDeploymentId) {
-      throw new Error("Deployment or provider ID not found")
-    }
-
-    const result = await deployerFactory.cancelDeployment(deployment.provider, deployment.providerDeploymentId)
-
-    await this.updateDeploymentStatus(deploymentId, "rolled-back")
-    await Log.create({
-      deploymentId,
-      service: "deployment",
-      level: "info",
-      message: `Deployment canceled via ${deployment.provider}`,
-    })
-
-    return result
-  }
 }
 
-module.exports = new DeploymentService()
+module.exports = new DeploymentService();

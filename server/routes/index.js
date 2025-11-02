@@ -22,6 +22,22 @@ const databaseRoutes = require('./databases');
 const apiTokenRoutes = require('./api-tokens');
 const webhookRoutes = require('./webhooks');
 const settingsRoutes = require('./settings');
+const webhookDeliveriesRoutes = require('./webhook-deliveries');
+const notificationRoutes = require('./notifications');
+const dashboardRoutes = require('./dashboard');
+const helpRoutes = require('./help');
+const statusRoutes = require('./status');
+const adminRoutes = require('./admin');
+const integrationRoutes = require('./integrations');
+
+// Deployment Management Routes
+const alertRoutes = require('./alerts');
+const incidentRoutes = require('./incidents');
+const escalationRoutes = require('./escalation');
+const uptimeRoutes = require('./uptime');
+const metricsRoutes = require('./metrics');
+const reportsRoutes = require('./reports');
+const deploymentRoutes = require('./deployments');
 
 // Existing feature routes
 router.use('/split-testing', authenticate, splitTestingRoutes);
@@ -42,6 +58,22 @@ router.use('/databases', authenticate, databaseRoutes);
 router.use('/api-tokens', authenticate, apiTokenRoutes);
 router.use('/webhooks', authenticate, webhookRoutes);
 router.use('/settings', authenticate, settingsRoutes);
+router.use('/webhook-deliveries', authenticate, webhookDeliveriesRoutes);
+router.use('/notifications', authenticate, notificationRoutes);
+router.use('/dashboard', authenticate, dashboardRoutes);
+router.use('/help', helpRoutes);
+router.use('/status', statusRoutes);
+router.use('/admin', authenticate, adminRoutes);
+router.use('/integrations', authenticate, integrationRoutes);
+
+// Deployment Management Routes
+router.use('/alerts', authenticate, alertRoutes);
+router.use('/incidents', authenticate, incidentRoutes);
+router.use('/escalation', authenticate, escalationRoutes);
+router.use('/uptime', authenticate, uptimeRoutes);
+router.use('/metrics', authenticate, metricsRoutes);
+router.use('/reports', authenticate, reportsRoutes);
+router.use('/deployments', authenticate, deploymentRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useAppStore } from "@/store/use-app-store"
+import { useDashboardData } from "@/hooks/use-dashboard-data"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,18 +13,21 @@ import { cn } from "@/lib/utils"
 import apiClient from "@/lib/api-client"
 
 export default function DashboardPage() {
-  const { billing, loadInitialData } = useAppStore()
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [deployments, setDeployments] = useState([])
-  const [projects, setProjects] = useState([])
-  const [databases, setDatabases] = useState([])
-  const [functions, setFunctions] = useState([])
-  const [cronjobs, setCronjobs] = useState([])
-  const [projectStats, setProjectStats] = useState(null)
-  const [systemHealth, setSystemHealth] = useState([])
-  const [recentActivity, setRecentActivity] = useState([])
-  const [metrics, setMetrics] = useState(null)
+  const { billing } = useAppStore();
+  const { 
+    loading,
+    refreshing,
+    deployments,
+    projects,
+    databases,
+    functions,
+    cronjobs,
+    projectStats,
+    systemHealth,
+    recentActivity,
+    metrics,
+    refresh
+  } = useDashboardData();
 
   const features = [
     {
@@ -70,96 +74,27 @@ export default function DashboardPage() {
     },
   ]
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-      
-      const [projectsRes, deploymentsRes, databasesRes, functionsRes, cronjobsRes] = await Promise.allSettled([
-        apiClient.getProjects().catch(() => []),
-        apiClient.getDeployments('all').catch(() => []),
-        apiClient.getDatabases('all').catch(() => []),
-        apiClient.getFunctions('all').catch(() => []),
-        apiClient.getCronJobs('all').catch(() => [])
-      ])
-      
-      const projectsData = projectsRes.status === 'fulfilled' ? projectsRes.value : []
-      const deploymentsData = deploymentsRes.status === 'fulfilled' ? deploymentsRes.value : []
-      const databasesData = databasesRes.status === 'fulfilled' ? databasesRes.value : []
-      const functionsData = functionsRes.status === 'fulfilled' ? functionsRes.value : []
-      const cronjobsData = cronjobsRes.status === 'fulfilled' ? cronjobsRes.value : []
-      
-      if (projectsData.length === 0 && deploymentsData.length === 0) {
-        loadInitialData()
-        const store = useAppStore.getState()
-        setProjects(store.projects)
-        setDeployments(store.deployments)
-        setDatabases(store.databases)
-        setFunctions(store.functions)
-        setCronjobs(store.cronjobs)
-      } else {
-        setProjects(projectsData)
-        setDeployments(deploymentsData)
-        setDatabases(databasesData)
-        setFunctions(functionsData)
-        setCronjobs(cronjobsData)
-      }
-      
-      const currentDeployments = deploymentsData.length > 0 ? deploymentsData : useAppStore.getState().deployments
-      const successfulDeployments = currentDeployments.filter(d => d.status === 'success' || d.status === 'Running')
-      const failedDeployments = currentDeployments.filter(d => d.status === 'failed' || d.status === 'Failed')
-      const currentFunctions = functionsData.length > 0 ? functionsData : useAppStore.getState().functions
-      const activeFunctions = currentFunctions.filter(f => f.enabled)
-      
-      setProjectStats({
-        totalDeployments: currentDeployments.length,
-        successRate: currentDeployments.length > 0 ? Math.round((successfulDeployments.length / currentDeployments.length) * 100) : 94,
-        avgDeployTime: 245,
-        uptime: 99.9,
-        failureRate: currentDeployments.length > 0 ? Math.round((failedDeployments.length / currentDeployments.length) * 100) : 6,
-        totalProjects: projectsData.length > 0 ? projectsData.length : useAppStore.getState().projects.length,
-        activeFunctions: activeFunctions.length,
-      })
-      
-      const activity = currentDeployments.slice(0, 10).map(d => ({
-        id: d.id,
-        message: `${d.project || 'Project'} ${d.version || 'v1.0.0'} ${d.status === 'Failed' ? 'failed' : 'deployed'}`,
-        when: d.createdAt ? new Date(d.createdAt).toLocaleString() : d.time || 'Recently',
-        status: d.status
-      }))
-      setRecentActivity(activity)
-      
-      setSystemHealth([
-        { label: 'API Response', status: 'good', value: '45ms' },
-        { label: 'Database', status: 'good', value: 'Connected' },
-        { label: 'CDN Status', status: 'good', value: 'Healthy' },
-        { label: 'Build Queue', status: currentDeployments.filter(d => d.status === 'Building').length > 5 ? 'warning' : 'good', value: `${currentDeployments.filter(d => d.status === 'Building').length} pending` }
-      ])
-      
-      setMetrics({
-        buildTime: { value: '2m 34s', change: '-12%', positive: true },
-        cacheHitRate: { value: '78%', change: '+5%', positive: true },
-        deploySuccess: { value: `${projectStats?.successRate || 94}%`, change: '+2.1%', positive: true }
-      })
-      
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
-      loadInitialData()
-    } finally {
-      setLoading(false)
-    }
+  // Data fetching is now handled by the useDashboardData hook
+  const refreshData = () => {
+    refresh();
   }
-  
-  const refreshData = async () => {
-    setRefreshing(true)
-    await fetchDashboardData()
-    setRefreshing(false)
+
+  // Show loading state while data is being fetched
+  if (loading && projects.length === 0 && deployments.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
+            <Sparkles className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Loading Dashboard...</h2>
+            <p className="text-muted-foreground">Fetching your project data</p>
+          </div>
+        </div>
+      </div>
+    )
   }
-  
-  useEffect(() => {
-    fetchDashboardData()
-    const interval = setInterval(fetchDashboardData, 30000)
-    return () => clearInterval(interval)
-  }, [])
 
   const getStatusIcon = (status) => {
     switch (status) {

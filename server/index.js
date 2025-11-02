@@ -4,6 +4,7 @@ const passport = require("passport")
 const session = require("express-session")
 require("dotenv").config()
 const connectDB = require("./config/database")
+const ErrorMonitoringService = require("./services/errorMonitoringService")
 const errorHandler = require("./middleware/errorHandler")
 const config = require("./config/env")
 require("./config/passport")
@@ -16,6 +17,9 @@ const databaseRoutes = require("./routes/databases")
 const functionRoutes = require("./routes/functions")
 const cronJobRoutes = require("./routes/cronjobs")
 const domainRoutes = require("./routes/domains")
+const dnsRoutes = require("./routes/dns")
+const sslRoutes = require("./routes/ssl")
+const edgeHandlerRoutes = require("./routes/edge-handlers")
 const environmentRoutes = require("./routes/environment")
 const teamRoutes = require("./routes/team")
 const logRoutes = require("./routes/logs")
@@ -27,13 +31,31 @@ const apiTokenRoutes = require("./routes/api-tokens")
 const webhookRoutes = require("./routes/webhooks")
 const settingsRoutes = require("./routes/settings")
 const providersRoutes = require("./routes/providers")
+const dashboardRoutes = require("./routes/dashboard")
+const incidentRoutes = require("./routes/incidents")
+const escalationRoutes = require("./routes/escalation")
+const uptimeRoutes = require("./routes/uptime")
+const reportsRoutes = require("./routes/reports")
 
 const app = express()
 
 // Middleware
+// Configure CORS. During local development allow the frontend dev server(s).
+const allowedOrigins = [config.clientUrl, 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://192.168.0.1:3001']
 app.use(
   cors({
-    origin: config.clientUrl,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        return callback(null, true)
+      }
+      // In development, be permissive and allow any localhost origins
+      if (config.nodeEnv !== 'production' && /localhost|127\.0\.0\.1/.test(origin)) {
+        return callback(null, true)
+      }
+      callback(new Error('Not allowed by CORS'))
+    },
     credentials: true,
   }),
 )
@@ -69,6 +91,9 @@ app.use("/api/databases", databaseRoutes)
 app.use("/api/functions", functionRoutes)
 app.use("/api/cronjobs", cronJobRoutes)
 app.use("/api/domains", domainRoutes)
+app.use("/api/dns", dnsRoutes)
+app.use("/api/ssl", sslRoutes)
+app.use("/api/edge-handlers", edgeHandlerRoutes)
 app.use("/api/environment", environmentRoutes)
 app.use("/api/team", teamRoutes)
 app.use("/api/logs", logRoutes)
@@ -80,6 +105,11 @@ app.use("/api/api-tokens", apiTokenRoutes)
 app.use("/api/webhooks", webhookRoutes)
 app.use("/api/settings", settingsRoutes)
 app.use("/api/providers", providersRoutes)
+app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/incidents", incidentRoutes)
+app.use("/api/escalation", escalationRoutes)
+app.use("/api/uptime", uptimeRoutes)
+app.use("/api/reports", reportsRoutes)
 
 // Error handling
 app.use(errorHandler)
@@ -108,6 +138,9 @@ app.get('/metrics', (req, res, next) => {
   res.status(401).send('Invalid credentials')
 })
 
+// Initialize error monitoring
+ErrorMonitoringService.init();
+
 // Connect to database and start server
 connectDB()
   .then(() => {
@@ -117,8 +150,13 @@ connectDB()
     })
   })
   .catch((error) => {
-    console.error("Database connection failed:", error)
-    process.exit(1)
+    ErrorMonitoringService.handleError(error);
+    // Don't exit immediately in production, give time for reconnection
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Attempting to continue in degraded mode...');
+    } else {
+      process.exit(1);
+    }
   })
 
 module.exports = app

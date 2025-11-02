@@ -1,5 +1,6 @@
 const crypto = require("crypto")
-const { Webhook } = require("../models/ApiToken")
+const Webhook = require("../models/Webhook")
+const webhookDeliveryService = require('./webhookDeliveryService')
 
 class WebhookService {
   async createWebhook(projectId, url, events, secret) {
@@ -49,28 +50,8 @@ class WebhookService {
   async testWebhook(webhookId, payload) {
     const webhook = await Webhook.findById(webhookId)
     if (!webhook) throw new Error("Webhook not found")
-
-    const delivery = {
-      eventType: "test",
-      deliveredAt: new Date(),
-      status: "pending",
-      attempts: 0,
-    }
-
-    try {
-      const result = await this._deliverWebhook(webhook, payload)
-      delivery.status = "success"
-      delivery.attempts = 1
-      delivery.response = result
-    } catch (error) {
-      delivery.status = "failed"
-      delivery.lastError = error.message
-    }
-
-    webhook.deliveries.push(delivery)
-    await webhook.save()
-
-    return delivery
+    // Delegate delivery and logging to webhookDeliveryService
+    return webhookDeliveryService.sendWebhook(webhook, 'test', payload)
   }
 
   async deliverEvent(projectId, eventType, eventData) {
@@ -84,8 +65,8 @@ class WebhookService {
 
     for (const webhook of webhooks) {
       try {
-        const result = await this._deliverWithRetry(webhook, eventType, eventData)
-        results.push({ webhookId: webhook._id, success: true, result })
+        const delivery = await webhookDeliveryService.sendWebhook(webhook, eventType, eventData)
+        results.push({ webhookId: webhook._id, success: delivery.success, deliveryId: delivery._id })
       } catch (error) {
         results.push({ webhookId: webhook._id, success: false, error: error.message })
       }
@@ -94,38 +75,9 @@ class WebhookService {
     return results
   }
 
+  // Delivery orchestration is handed to webhookDeliveryService which persists deliveries and handles retry metadata
   async _deliverWithRetry(webhook, eventType, eventData, attempt = 1) {
-    const delivery = {
-      eventType,
-      deliveredAt: new Date(),
-      status: "pending",
-      attempts: attempt,
-    }
-
-    try {
-      const result = await this._deliverWebhook(webhook, eventData)
-      delivery.status = "success"
-      delivery.response = result
-    } catch (error) {
-      delivery.lastError = error.message
-
-      if (attempt < webhook.retryPolicy.maxAttempts) {
-        const delay = webhook.retryPolicy.initialDelayMs * Math.pow(webhook.retryPolicy.backoffMultiplier, attempt - 1)
-
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve(this._deliverWithRetry(webhook, eventType, eventData, attempt + 1))
-          }, delay)
-        })
-      } else {
-        delivery.status = "failed"
-      }
-    }
-
-    webhook.deliveries.push(delivery)
-    await webhook.save()
-
-    return delivery
+    return webhookDeliveryService.sendWebhook(webhook, eventType, eventData)
   }
 
   async _deliverWebhook(webhook, payload) {
@@ -137,11 +89,9 @@ class WebhookService {
       ...webhook.headers,
     }
 
-    // In production, use actual HTTP client like axios/node-fetch
-    return {
-      statusCode: 200,
-      message: "Webhook delivered",
-    }
+    // The low-level HTTP delivery is now handled in webhookDeliveryService.
+    // Keep a lightweight placeholder here for compatibility.
+    return { statusCode: 200, message: 'ok' }
   }
 
   _generateSignature(payload, secret) {
@@ -149,40 +99,14 @@ class WebhookService {
   }
 
   async getWebhookDeliveries(webhookId, { limit = 50, offset = 0 }) {
-    const webhook = await Webhook.findById(webhookId)
-    if (!webhook) throw new Error("Webhook not found")
-
-    const deliveries = webhook.deliveries
-      .sort((a, b) => new Date(b.deliveredAt) - new Date(a.deliveredAt))
-      .slice(offset, offset + limit)
-
-    return {
-      deliveries,
-      total: webhook.deliveries.length,
-      limit,
-      offset,
-    }
+    // Proxy to webhookDeliveryService
+    const page = Math.floor(offset / limit) + 1
+    return webhookDeliveryService.getDeliveries(webhookId, { page, limit })
   }
 
   async retryDelivery(webhookId, deliveryIndex) {
-    const webhook = await Webhook.findById(webhookId)
-    if (!webhook) throw new Error("Webhook not found")
-
-    const delivery = webhook.deliveries[deliveryIndex]
-    if (!delivery) throw new Error("Delivery not found")
-
-    try {
-      const result = await this._deliverWebhook(webhook, {})
-      delivery.status = "success"
-      delivery.attempts += 1
-      delivery.response = result
-    } catch (error) {
-      delivery.lastError = error.message
-      delivery.attempts += 1
-    }
-
-    await webhook.save()
-    return delivery
+    // Expect deliveryIndex to be a deliveryId for the new service
+    return webhookDeliveryService.retryDelivery(deliveryIndex)
   }
 
   async updateRetryPolicy(webhookId, retryPolicy) {

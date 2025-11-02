@@ -105,4 +105,4 @@ class EdgeHandlerService {
   }
 }
 
-module.exports = new EdgeHandlerService();
+module.exports = Object.freeze(new EdgeHandlerService());

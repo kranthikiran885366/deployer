@@ -1,9 +1,14 @@
+const BaseController = require('./BaseController');
 const gitIntegrationService = require('../services/gitIntegrationService');
 const deploymentService = require('../services/deploymentService');
 const Project = require('../models/Project');
 const { validateGitSignature } = require('../utils/webhookManager');
 
-class GitDeploymentController {
+class GitDeploymentController extends BaseController {
+  constructor() {
+    super();
+    BaseController.bindMethods(this);
+  }
   async configureRepository(req, res, next) {
     try {
       const { projectId } = req.params;

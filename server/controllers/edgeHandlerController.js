@@ -1,6 +1,12 @@
+const BaseController = require('./BaseController');
 const edgeHandlerService = require('../services/edgeHandlerService');
 
-class EdgeHandlerController {
+class EdgeHandlerController extends BaseController {
+  constructor() {
+    super();
+    BaseController.bindMethods(this);
+  }
+
   async listHandlers(req, res) {
     try {
       const handlers = await edgeHandlerService.listHandlers();
@@ -75,6 +81,15 @@ class EdgeHandlerController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  async listHandlers(req, res) {
+    try {
+      const handlers = await edgeHandlerService.listHandlers();
+      res.json(handlers);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
 }
 
-module.exports = new EdgeHandlerController();
+module.exports = EdgeHandlerController;

@@ -2,6 +2,12 @@
 const Team = require("../models/Team")
 const User = require("../models/User")
 const crypto = require("crypto")
+let notificationService
+try {
+  notificationService = require('./notificationService')
+} catch (e) {
+  notificationService = null
+}
 
 class TeamService {
   async inviteMember(projectId, email, role = "developer") {
@@ -21,7 +27,15 @@ class TeamService {
 
     await teamMember.save()
 
-    // In production, send email with invite link
+    // Send invitation notification if notificationService is available
+    try {
+      if (notificationService && teamMember.email) {
+        await notificationService.sendEmail(teamMember.email, 'team_invitation', { teamName: projectId, inviteToken })
+      }
+    } catch (e) {
+      // swallow errors - invitation still created
+    }
+
     return {
       ...teamMember.toObject(),
       inviteToken,
@@ -169,6 +183,15 @@ class TeamService {
     member.inviteExpiresAt = expiresAt
 
     await member.save()
+
+    // Try to send notification
+    try {
+      if (notificationService && member.email) {
+        await notificationService.sendEmail(member.email, 'team_invitation', { teamName: projectId, inviteToken })
+      }
+    } catch (e) {
+      // ignore
+    }
 
     return {
       inviteToken,

@@ -25,7 +25,48 @@ class ProjectService {
   }
 
   async getProjects(userId) {
-    return await Project.find({ userId }).sort({ createdAt: -1 })
+    try {
+      const projects = await Project.find({ userId }).sort({ createdAt: -1 })
+      
+      if (!projects || !Array.isArray(projects)) {
+        console.warn('No projects found or invalid response for userId:', userId);
+        return [];
+      }
+      
+      // Enrich projects with deployment statistics
+      const enrichedProjects = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const stats = await this.getProjectStats(project._id)
+            const recentDeployments = await Deployment.find({ projectId: project._id })
+              .sort({ createdAt: -1 })
+              .limit(5)
+              .populate('environmentId', 'name')
+            
+            return {
+              ...project.toObject(),
+              stats,
+              recentDeployments,
+              lastDeployment: recentDeployments[0] || null
+            }
+          } catch (error) {
+            console.error(`Error enriching project ${project._id}:`, error);
+            // Return project without enrichment rather than failing completely
+            return {
+              ...project.toObject(),
+              stats: {},
+              recentDeployments: [],
+              lastDeployment: null
+            }
+          }
+        })
+      )
+      
+      return enrichedProjects
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      return [];
+    }
   }
 
   async getProjectById(id) {
@@ -44,27 +85,41 @@ class ProjectService {
   }
 
   async getProjectStats(projectId) {
-    const allDeployments = await Deployment.find({ projectId })
+    const allDeployments = await Deployment.find({ projectId }).sort({ createdAt: -1 })
     const deployments = allDeployments.length
     const failedDeployments = allDeployments.filter((d) => d.status === "failed").length
-    const runningDeployments = allDeployments.filter((d) => d.status === "running").length
-    const successfulDeployments = deployments - failedDeployments
+    const runningDeployments = allDeployments.filter((d) => ["pending", "building", "deploying"].includes(d.status)).length
+    const successfulDeployments = allDeployments.filter((d) => d.status === "success").length
+    const cancelledDeployments = allDeployments.filter((d) => d.status === "cancelled").length
 
-    const avgBuildTime = allDeployments.reduce((sum, d) => sum + (d.buildTime || 0), 0) / Math.max(deployments, 1)
-    const avgDeployTime = allDeployments.reduce((sum, d) => sum + (d.deployTime || 0), 0) / Math.max(deployments, 1)
-    const avgCacheHitRate =
-      allDeployments.reduce((sum, d) => sum + (d.buildCacheHitRate || 0), 0) / Math.max(deployments, 1)
+    // Calculate build times from deployment data
+    const completedDeployments = allDeployments.filter(d => d.endTime && d.startTime)
+    const avgBuildTime = completedDeployments.length > 0 
+      ? completedDeployments.reduce((sum, d) => {
+          const duration = new Date(d.endTime) - new Date(d.startTime)
+          return sum + (duration / 1000) // Convert to seconds
+        }, 0) / completedDeployments.length
+      : 0
 
+    // Calculate monthly bandwidth (mock data for now)
+    const monthlyBandwidth = Math.random() * 5 + 1 // 1-6 GB
+    
+    // Get environments count
+    const environments = await Environment.countDocuments({ projectId })
+    
     return {
       totalDeployments: deployments,
       successfulDeployments,
       failedDeployments,
       runningDeployments,
-      successRate: deployments > 0 ? ((successfulDeployments / deployments) * 100).toFixed(2) : 0,
+      cancelledDeployments,
+      successRate: deployments > 0 ? ((successfulDeployments / deployments) * 100).toFixed(1) : "100.0",
       avgBuildTime: Math.round(avgBuildTime),
-      avgDeployTime: Math.round(avgDeployTime),
-      avgCacheHitRate: Math.round(avgCacheHitRate),
+      monthlyBandwidth: `${monthlyBandwidth.toFixed(1)} GB`,
+      environments,
       lastDeployment: allDeployments[0],
+      isActive: runningDeployments > 0,
+      healthStatus: this.calculateHealthStatus(successfulDeployments, failedDeployments, runningDeployments)
     }
   }
 
@@ -88,6 +143,46 @@ class ProjectService {
 
   async updateProjectSettings(projectId, settings) {
     return await Project.findByIdAndUpdate(projectId, settings, { new: true })
+  }
+
+  calculateHealthStatus(successful, failed, running) {
+    const total = successful + failed
+    if (total === 0) return 'healthy'
+    
+    const failureRate = (failed / total) * 100
+    if (running > 0) return 'deploying'
+    if (failureRate > 50) return 'critical'
+    if (failureRate > 20) return 'warning'
+    if (failureRate > 5) return 'degraded'
+    return 'healthy'
+  }
+
+  async getProjectsOverview(userId) {
+    const projects = await this.getProjects(userId)
+    const totalProjects = projects.length
+    const activeProjects = projects.filter(p => p.status === 'active').length
+    const totalDeployments = projects.reduce((sum, p) => sum + (p.stats?.totalDeployments || 0), 0)
+    const avgSuccessRate = projects.length > 0 
+      ? projects.reduce((sum, p) => sum + parseFloat(p.stats?.successRate || 0), 0) / projects.length
+      : 100
+    const totalBandwidth = projects.reduce((sum, p) => {
+      const bandwidth = parseFloat(p.stats?.monthlyBandwidth?.replace(' GB', '') || 0)
+      return sum + bandwidth
+    }, 0)
+    
+    const frameworks = [...new Set(projects.map(p => p.framework))]
+    const teams = [...new Set(projects.map(p => 'Development Team'))] // Mock team data
+    
+    return {
+      totalProjects,
+      activeProjects,
+      totalDeployments,
+      avgSuccessRate: avgSuccessRate.toFixed(1),
+      totalBandwidth: `${totalBandwidth.toFixed(1)} GB`,
+      frameworks,
+      teams,
+      projects
+    }
   }
 }
 
